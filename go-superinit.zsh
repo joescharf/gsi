@@ -22,6 +22,9 @@ SKIP_BMAD=false
 SKIP_GIT=false
 PROJECT_NAME=""
 
+# BMAD installation command - modify this to change the bmad installation
+BMAD_INSTALL_CMD="bunx bmad-method@alpha install"
+
 # Cleanup function for error handling
 cleanup() {
     local exit_code=$?
@@ -124,7 +127,7 @@ validate_environment() {
     log_info "Validating environment..."
 
     local required_commands=("go")
-    local optional_commands=("git" "npx")
+    local optional_commands=("git" "bun")
     local missing_required=()
     local missing_optional=()
 
@@ -159,36 +162,35 @@ validate_environment() {
 
 check_existing_state() {
     local project_dir="$1"
-    local issues=()
+    local existing=()
 
     log_info "Checking existing state..."
 
     # Check if go.mod exists
     if [[ -f "$project_dir/go.mod" ]]; then
-        issues+=("go.mod already exists")
+        existing+=("go.mod")
     fi
 
     # Check if .git exists
-    if [[ -d "$project_dir/.git" ]] && [[ "$SKIP_GIT" == false ]]; then
-        issues+=(".git directory already exists")
+    if [[ -d "$project_dir/.git" ]]; then
+        existing+=(".git/")
     fi
 
     # Check if cmd directory exists
     if [[ -d "$project_dir/cmd" ]]; then
-        issues+=("cmd/ directory already exists")
+        existing+=("cmd/")
     fi
 
-    if [[ ${#issues[@]} -gt 0 ]]; then
-        log_warning "Found existing project files:"
-        for issue in "${issues[@]}"; do
-            log_warning "  - $issue"
+    # Check if _bmad directory exists
+    if [[ -d "$project_dir/_bmad" ]]; then
+        existing+=("_bmad/")
+    fi
+
+    if [[ ${#existing[@]} -gt 0 ]]; then
+        log_info "Found existing project files (will skip where appropriate):"
+        for item in "${existing[@]}"; do
+            log_verbose "  - $item"
         done
-        echo
-        read "response?Continue anyway? (y/N) "
-        if [[ ! "$response" =~ ^[Yy]$ ]]; then
-            log_error "Aborted by user"
-            return 1
-        fi
     else
         log_success "No existing project files found"
     fi
@@ -295,13 +297,11 @@ main() {
 
         # Check if directory already exists
         if [[ -d "$PROJECT_DIR" ]]; then
-            # Directory exists - check if it's empty
+            # Directory exists - use it (idempotent behavior)
             if [[ -n "$(ls -A "$PROJECT_DIR" 2>/dev/null)" ]]; then
-                log_error "Directory '$PROJECT_DIR' already exists and is not empty"
-                log_error "Please use a different name or remove existing files"
-                return 1
+                log_info "Directory '$PROJECT_DIR' already exists, continuing with initialization"
             else
-                log_warning "Directory '$PROJECT_DIR' exists but is empty, using it"
+                log_info "Directory '$PROJECT_DIR' exists but is empty, using it"
             fi
         else
             # Create the directory
@@ -361,13 +361,15 @@ main() {
     echo
 
     # Install BMAD method framework
-    if [[ "$SKIP_BMAD" == false ]] && command -v npx &> /dev/null; then
-        execute "npx bmad-method install -f -i claude-code -d ./" \
-                "Installing BMAD method framework"
-    elif [[ "$SKIP_BMAD" == false ]]; then
-        log_warning "Skipping BMAD installation (npx not found)"
-    else
+    if [[ "$SKIP_BMAD" == true ]]; then
         log_info "Skipping BMAD installation (--skip-bmad flag)"
+    elif [[ -d "_bmad" ]]; then
+        log_info "_bmad/ directory already exists, skipping BMAD installation"
+    elif command -v bun &> /dev/null; then
+        execute "$BMAD_INSTALL_CMD" \
+                "Installing BMAD method framework"
+    else
+        log_warning "Skipping BMAD installation (bun not found)"
     fi
 
     # Install cobra-cli if needed
@@ -380,7 +382,7 @@ main() {
         execute "go mod init $GO_MODULE_PATH" \
                 "Initializing Go module"
     else
-        log_warning "go.mod already exists, skipping go mod init"
+        log_info "go.mod already exists, skipping go mod init"
     fi
 
     # Initialize Cobra CLI application
@@ -388,7 +390,7 @@ main() {
         execute "cobra-cli init --viper --author \"$AUTHOR\" --config \$HOME/.config/$PROJECT_NAME" \
                 "Creating Cobra CLI application structure"
     else
-        log_warning "cmd/ directory already exists, skipping cobra-cli init"
+        log_info "cmd/ directory already exists, skipping cobra-cli init"
     fi
 
     # Add version command
@@ -396,25 +398,33 @@ main() {
         execute "cobra-cli add version" \
                 "Adding version command"
     else
-        log_warning "cmd/version.go already exists, skipping"
+        log_info "cmd/version.go already exists, skipping"
     fi
 
     # Tidy dependencies
     execute "go mod tidy" \
             "Tidying Go dependencies"
 
-    # Initialize mockery
+    # Create mockery configuration
     if [[ ! -f ".mockery.yml" ]] || [[ "$DRY_RUN" == true ]]; then
-        # Check if mockery is available
-        if command -v mockery &> /dev/null; then
-            execute "mockery init $PROJECT_NAME" \
-                    "Initializing mockery for test mocks"
+        if [[ "$DRY_RUN" == false ]]; then
+            log_info "Creating .mockery.yml configuration"
+            cat > .mockery.yml << EOF
+with-expecter: true
+packages:
+  $GO_MODULE_PATH:
+    config:
+      recursive: true
+      dir: "{{.InterfaceDir}}/mocks"
+      mockname: "Mock{{.InterfaceName}}"
+      outpkg: "mocks"
+EOF
+            log_success "Created .mockery.yml"
         else
-            log_warning "mockery not found, skipping mockery init"
-            log_info "Install with: go install github.com/vektra/mockery/v2@latest"
+            log_warning "[DRY-RUN] Would create .mockery.yml"
         fi
     else
-        log_info ".mockery.yml already exists, skipping mockery init"
+        log_info ".mockery.yml already exists, skipping"
     fi
 
     # Create .editorconfig
@@ -460,7 +470,7 @@ EOF
             execute "git init" \
                     "Initializing git repository"
         else
-            log_warning ".git directory already exists, skipping git init"
+            log_info ".git directory already exists, skipping git init"
         fi
 
         # Create .gitignore
@@ -516,7 +526,7 @@ EOF
         # Initial commit
         if [[ "$DRY_RUN" == false ]]; then
             if git rev-parse HEAD &> /dev/null; then
-                log_warning "Git repository already has commits, skipping initial commit"
+                log_info "Git repository already has commits, skipping initial commit"
             else
                 execute "git add ." \
                         "Staging files for initial commit"
