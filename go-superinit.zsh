@@ -20,6 +20,7 @@ DRY_RUN=false
 VERBOSE=false
 SKIP_BMAD=false
 SKIP_GIT=false
+INIT_UI=false
 PROJECT_NAME=""
 
 # BMAD installation command - modify this to change the bmad installation
@@ -99,6 +100,7 @@ Options:
     -v, --verbose       Enable verbose output
     --skip-bmad         Skip BMAD method installation
     --skip-git          Skip git initialization and commit
+    --ui                Initialize a React/shadcn/Tailwind UI in ui/ subdirectory (requires bun)
     -h, --help          Show this help message
 
 Examples:
@@ -106,6 +108,7 @@ Examples:
     $script_name --author "Jane Doe jane@example.com" my-app
     $script_name --module github.com/myorg/myapp --dry-run my-app
     $script_name --skip-bmad --skip-git my-app
+    $script_name --ui my-app
     $script_name .    # Initialize in current directory
 
 EOF
@@ -186,6 +189,11 @@ check_existing_state() {
         existing+=("_bmad/")
     fi
 
+    # Check if ui directory exists
+    if [[ -d "$project_dir/ui" ]]; then
+        existing+=("ui/")
+    fi
+
     if [[ ${#existing[@]} -gt 0 ]]; then
         log_info "Found existing project files (will skip where appropriate):"
         for item in "${existing[@]}"; do
@@ -238,6 +246,10 @@ parse_args() {
                 ;;
             --skip-git)
                 SKIP_GIT=true
+                shift
+                ;;
+            --ui)
+                INIT_UI=true
                 shift
                 ;;
             -h|--help)
@@ -341,6 +353,7 @@ main() {
     echo "  Module Path:   $GO_MODULE_PATH"
     echo "  Author:        $AUTHOR"
     echo "  Config Dir:    $HOME/.config/$PROJECT_NAME"
+    echo "  Init UI:       $INIT_UI"
     if [[ "$DRY_RUN" == true ]]; then
         echo "  ${YELLOW}Mode:          DRY-RUN${NC}"
     fi
@@ -348,6 +361,15 @@ main() {
 
     # Validate environment
     validate_environment || return 1
+
+    # Validate bun is available if --ui is requested
+    if [[ "$INIT_UI" == true ]]; then
+        if ! command -v bun &> /dev/null; then
+            log_error "bun is required for UI initialization (--ui flag) but is not installed"
+            log_error "Install bun: https://bun.sh"
+            return 1
+        fi
+    fi
 
     # Check existing state (in dry-run, check PROJECT_DIR; otherwise check current dir since we already cd'd)
     if [[ "$DRY_RUN" == false ]]; then
@@ -463,6 +485,16 @@ EOF
         log_info ".editorconfig already exists, skipping"
     fi
 
+    # Initialize UI with React/shadcn/Tailwind
+    if [[ "$INIT_UI" == true ]]; then
+        if [[ -d "ui" ]] && [[ "$DRY_RUN" == false ]]; then
+            log_info "ui/ directory already exists, skipping UI initialization"
+        else
+            execute "bun init --react=shadcn ui" \
+                    "Initializing React/shadcn/Tailwind UI in ui/"
+        fi
+    fi
+
     # Git initialization
     if [[ "$SKIP_GIT" == false ]]; then
         # Initialize git repository
@@ -514,6 +546,9 @@ build/
 # Environment
 .env
 .env.local
+
+# UI (bun/React)
+ui/node_modules/
 EOF
                 log_success "Created .gitignore"
             else
@@ -548,6 +583,9 @@ EOF
     echo "  2. Update the project description in cmd/root.go"
     echo "  3. Run 'go build' to build your application"
     echo "  4. Run './$PROJECT_NAME --help' to see available commands"
+    if [[ "$INIT_UI" == true ]]; then
+        echo "  5. cd ui/ && bun dev    # Start the React development server"
+    fi
     echo
 }
 
