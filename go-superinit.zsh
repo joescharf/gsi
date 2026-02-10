@@ -444,9 +444,56 @@ main() {
         log_info "cmd/version.go already exists, skipping"
     fi
 
-    # Tidy dependencies
-    execute "go mod tidy" \
-            "Tidying Go dependencies"
+    # Create serve command
+    if [[ ! -f "cmd/serve.go" ]] || [[ "$DRY_RUN" == true ]]; then
+        if [[ "$DRY_RUN" == false ]]; then
+            log_info "Creating cmd/serve.go"
+            mkdir -p cmd
+            cat > cmd/serve.go << GOEOF
+package cmd
+
+import (
+	"fmt"
+	"net/http"
+
+	"${GO_MODULE_PATH}/internal/ui"
+	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
+)
+
+var serveCmd = &cobra.Command{
+	Use:   "serve",
+	Short: "Start the embedded web UI server",
+	Long:  "Start an HTTP server that serves the embedded web UI.\nBy default it listens on port 8080. Use --port to change it.",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		port := viper.GetInt("port")
+
+		handler, err := ui.Handler()
+		if err != nil {
+			return fmt.Errorf("failed to initialize UI handler: %w", err)
+		}
+
+		addr := fmt.Sprintf(":%d", port)
+		fmt.Printf("Serving UI at http://localhost%s\n", addr)
+		return http.ListenAndServe(addr, handler)
+	},
+}
+
+func init() {
+	rootCmd.AddCommand(serveCmd)
+
+	serveCmd.Flags().IntP("port", "p", 8080, "port to listen on")
+	viper.SetDefault("port", 8080)
+	_ = viper.BindPFlag("port", serveCmd.Flags().Lookup("port"))
+}
+GOEOF
+            log_success "Created cmd/serve.go"
+        else
+            log_warning "[DRY-RUN] Would create cmd/serve.go"
+        fi
+    else
+        log_info "cmd/serve.go already exists, skipping"
+    fi
 
     # Create mockery configuration
     if [[ ! -f ".mockery.yml" ]] || [[ "$DRY_RUN" == true ]]; then
@@ -504,6 +551,307 @@ EOF
         fi
     else
         log_info ".editorconfig already exists, skipping"
+    fi
+
+    # Create default placeholder UI page
+    if [[ ! -f "internal/ui/dist/index.html" ]] || [[ "$DRY_RUN" == true ]]; then
+        if [[ "$DRY_RUN" == false ]]; then
+            log_info "Creating internal/ui/dist/index.html"
+            mkdir -p internal/ui/dist
+            cat > internal/ui/dist/index.html << EOF
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${PROJECT_NAME}</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: #0f172a;
+            color: #e2e8f0;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .container {
+            text-align: center;
+            max-width: 480px;
+            padding: 2rem;
+        }
+        h1 {
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+            color: #f8fafc;
+        }
+        .status {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 9999px;
+            padding: 0.5rem 1rem;
+            margin: 1.5rem 0;
+            font-size: 0.875rem;
+        }
+        .dot {
+            width: 8px;
+            height: 8px;
+            background: #22c55e;
+            border-radius: 50%;
+            animation: pulse 2s ease-in-out infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+        .hint {
+            color: #94a3b8;
+            font-size: 0.875rem;
+            line-height: 1.6;
+            margin-top: 1.5rem;
+        }
+        code {
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 4px;
+            padding: 0.15rem 0.4rem;
+            font-size: 0.8rem;
+            color: #7dd3fc;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>${PROJECT_NAME}</h1>
+        <div class="status">
+            <span class="dot"></span>
+            Server is running
+        </div>
+        <p class="hint">
+            This is the default placeholder page.<br>
+            To embed your React UI, run:<br>
+            <code>make ui-build && make ui-embed</code>
+        </p>
+    </div>
+</body>
+</html>
+EOF
+            log_success "Created internal/ui/dist/index.html"
+        else
+            log_warning "[DRY-RUN] Would create internal/ui/dist/index.html"
+        fi
+    else
+        log_info "internal/ui/dist/index.html already exists, skipping"
+    fi
+
+    # Create embed.go for serving the UI
+    if [[ ! -f "internal/ui/embed.go" ]] || [[ "$DRY_RUN" == true ]]; then
+        if [[ "$DRY_RUN" == false ]]; then
+            log_info "Creating internal/ui/embed.go"
+            mkdir -p internal/ui
+            cat > internal/ui/embed.go << 'GOEOF'
+package ui
+
+import (
+	"embed"
+	"io/fs"
+	"net/http"
+	"path"
+	"strings"
+)
+
+//go:embed all:dist
+var distFS embed.FS
+
+// DistFS returns the embedded dist/ filesystem with the "dist" prefix stripped.
+func DistFS() (fs.FS, error) {
+	return fs.Sub(distFS, "dist")
+}
+
+// Handler returns an http.Handler that serves the embedded UI with SPA fallback.
+// Static files are served directly. Paths without a file extension are treated as
+// client-side routes and served index.html. Missing assets return 404.
+func Handler() (http.Handler, error) {
+	sub, err := DistFS()
+	if err != nil {
+		return nil, err
+	}
+
+	fileServer := http.FileServerFS(sub)
+
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Clean the path
+		p := path.Clean(r.URL.Path)
+		if p == "/" {
+			fileServer.ServeHTTP(w, r)
+			return
+		}
+
+		// Strip leading slash for fs operations
+		p = strings.TrimPrefix(p, "/")
+
+		// Check if the file exists in the embedded FS
+		_, err := fs.Stat(sub, p)
+		if err == nil {
+			// File exists, serve it directly
+			fileServer.ServeHTTP(w, r)
+			return
+		}
+
+		// File doesn't exist — check if it looks like a static asset
+		if strings.Contains(p, ".") {
+			// Has extension (e.g. .js, .css, .png) — genuine missing asset
+			http.NotFound(w, r)
+			return
+		}
+
+		// No extension — treat as SPA client-side route, serve index.html
+		r.URL.Path = "/"
+		fileServer.ServeHTTP(w, r)
+	}), nil
+}
+GOEOF
+            log_success "Created internal/ui/embed.go"
+        else
+            log_warning "[DRY-RUN] Would create internal/ui/embed.go"
+        fi
+    else
+        log_info "internal/ui/embed.go already exists, skipping"
+    fi
+
+    # Tidy dependencies (after all Go files are generated)
+    execute "go mod tidy" \
+            "Tidying Go dependencies"
+
+    # Create Makefile
+    if [[ ! -f "Makefile" ]] || [[ "$DRY_RUN" == true ]]; then
+        if [[ "$DRY_RUN" == false ]]; then
+            log_info "Creating Makefile"
+            cat > Makefile << 'MAKEEOF'
+# Makefile
+BINARY_NAME := $(shell basename $(CURDIR))
+MODULE := $(shell head -1 go.mod | awk '{print $$2}')
+VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
+COMMIT := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+BUILD_DATE := $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
+LDFLAGS := -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT) -X main.date=$(BUILD_DATE)"
+
+# Conditionally include UI and docs targets if their directories exist
+ALL_TARGETS := build
+$(if $(wildcard ui/package.json),$(eval ALL_TARGETS += ui-build ui-embed))
+$(if $(wildcard docs/mkdocs.yml),$(eval ALL_TARGETS += docs-build))
+
+.DEFAULT_GOAL := all
+
+##@ App
+.PHONY: build install run serve clean tidy test lint vet fmt mocks
+
+build: ## Build the Go binary
+	go build $(LDFLAGS) -o bin/$(BINARY_NAME) .
+
+install: ## Install the binary to $GOPATH/bin
+	go install $(LDFLAGS) .
+
+run: build ## Build and run the binary
+	./bin/$(BINARY_NAME)
+
+serve: build ## Start the embedded web UI server
+	./bin/$(BINARY_NAME) serve
+
+clean: ## Remove build artifacts
+	rm -rf bin/
+	rm -f coverage.out
+
+tidy: ## Run go mod tidy
+	go mod tidy
+
+test: ## Run tests
+	go test -v -race -count=1 ./...
+
+test-cover: ## Run tests with coverage
+	go test -v -race -count=1 -coverprofile=coverage.out ./...
+	go tool cover -html=coverage.out -o coverage.html
+	@echo "Coverage report: coverage.html"
+
+lint: vet ## Run golangci-lint
+	@which golangci-lint > /dev/null 2>&1 || { echo "Install golangci-lint: https://golangci-lint.run/welcome/install/"; exit 1; }
+	golangci-lint run ./...
+
+vet: ## Run go vet
+	go vet ./...
+
+fmt: ## Run gofmt
+	gofmt -s -w .
+
+mocks: ## Generate mocks with mockery
+	@which mockery > /dev/null 2>&1 || { echo "Install mockery: go install github.com/vektra/mockery/v2@latest"; exit 1; }
+	mockery
+
+##@ Docs (mkdocs-material via uv)
+.PHONY: docs-serve docs-build docs-deps
+
+docs-serve: ## Serve docs locally (requires uv + docs/ directory)
+	@[ -d docs ] && [ -f docs/mkdocs.yml ] || { echo "No docs/ directory with mkdocs.yml found."; exit 1; }
+	cd docs && uv run mkdocs serve
+
+docs-build: ## Build docs site (requires uv + docs/ directory)
+	@[ -d docs ] && [ -f docs/mkdocs.yml ] || { echo "No docs/ directory with mkdocs.yml found."; exit 1; }
+	cd docs && uv run mkdocs build
+
+docs-deps: ## Install doc dependencies (requires uv + docs/ directory)
+	@[ -d docs ] && [ -f docs/pyproject.toml ] || { echo "No docs/ directory with pyproject.toml found."; exit 1; }
+	cd docs && uv sync
+
+##@ UI (React/shadcn via bun)
+.PHONY: ui-dev ui-build ui-embed ui-deps
+
+ui-dev: ## Start UI dev server (requires bun + ui/ directory)
+	@[ -d ui ] && [ -f ui/package.json ] || { echo "No ui/ directory found. Re-run go-superinit with --ui to create one."; exit 1; }
+	cd ui && bun dev
+
+ui-build: ## Build UI for production (requires bun + ui/ directory)
+	@[ -d ui ] && [ -f ui/package.json ] || { echo "No ui/ directory found. Re-run go-superinit with --ui to create one."; exit 1; }
+	cd ui && bun run build
+
+ui-embed: ## Copy built UI into internal/ui/dist for embedding
+	@[ -d ui/dist ] || { echo "No ui/dist/ directory found. Run 'make ui-build' first."; exit 1; }
+	rm -rf internal/ui/dist/*
+	cp -r ui/dist/* internal/ui/dist/
+
+ui-deps: ## Install UI dependencies (requires bun + ui/ directory)
+	@[ -d ui ] && [ -f ui/package.json ] || { echo "No ui/ directory found. Re-run go-superinit with --ui to create one."; exit 1; }
+	cd ui && bun install
+
+##@ All
+.PHONY: all deps dev
+
+all: $(ALL_TARGETS) ## Build all existing artifacts (app + UI + docs)
+
+deps: tidy ## Install all dependencies
+	@[ -d docs ] && [ -f docs/pyproject.toml ] && (cd docs && uv sync) || true
+	@[ -d ui ] && [ -f ui/package.json ] && (cd ui && bun install) || true
+
+dev: ## Start all dev servers (app + docs + UI) in parallel
+	@echo "Starting dev servers..."
+	@$(MAKE) -j3 run docs-serve ui-dev 2>/dev/null || $(MAKE) run
+
+##@ Help
+.PHONY: help
+
+help: ## Show this help
+	@awk 'BEGIN {FS = ":.*##"; printf "\nUsage:\n  make \033[36m<target>\033[0m\n"} /^[a-zA-Z_0-9-]+:.*?##/ { printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2 } /^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) }' $(MAKEFILE_LIST)
+MAKEEOF
+            log_success "Created Makefile"
+        else
+            log_warning "[DRY-RUN] Would create Makefile"
+        fi
+    else
+        log_info "Makefile already exists, skipping"
     fi
 
     # Initialize mkdocs-material documentation
@@ -760,6 +1108,7 @@ build/
 
 # UI (bun/React)
 ui/node_modules/
+internal/ui/dist/assets/
 
 # Docs (mkdocs-material)
 docs/.venv/
@@ -799,17 +1148,21 @@ EOF
     ((step++))
     echo "  $step. Update the project description in cmd/root.go"
     ((step++))
-    echo "  $step. Run 'go build' to build your application"
+    echo "  $step. Run 'make build' to build your application"
     ((step++))
-    echo "  $step. Run './$PROJECT_NAME --help' to see available commands"
+    echo "  $step. Run 'make run' or './bin/$PROJECT_NAME --help' to see available commands"
+    ((step++))
+    echo "  $step. Run 'make serve' to start the embedded web UI server"
     if [[ "$SKIP_DOCS" == false ]]; then
         ((step++))
-        echo "  $step. cd docs/ && uv run mkdocs serve    # Start docs dev server"
+        echo "  $step. Run 'make docs-serve' to start the docs dev server"
     fi
     if [[ "$INIT_UI" == true ]]; then
         ((step++))
-        echo "  $step. cd ui/ && bun dev    # Start the React development server"
+        echo "  $step. Run 'make ui-dev' to start the React dev server"
     fi
+    ((step++))
+    echo "  $step. Run 'make help' to see all available targets"
     echo
 }
 
