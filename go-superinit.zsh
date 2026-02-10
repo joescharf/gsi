@@ -20,6 +20,7 @@ DRY_RUN=false
 VERBOSE=false
 SKIP_BMAD=false
 SKIP_GIT=false
+SKIP_DOCS=false
 INIT_UI=false
 PROJECT_NAME=""
 
@@ -100,6 +101,7 @@ Options:
     -v, --verbose       Enable verbose output
     --skip-bmad         Skip BMAD method installation
     --skip-git          Skip git initialization and commit
+    --skip-docs         Skip mkdocs-material documentation scaffolding
     --ui                Initialize a React/shadcn/Tailwind UI in ui/ subdirectory (requires bun)
     -h, --help          Show this help message
 
@@ -108,6 +110,7 @@ Examples:
     $script_name --author "Jane Doe jane@example.com" my-app
     $script_name --module github.com/myorg/myapp --dry-run my-app
     $script_name --skip-bmad --skip-git my-app
+    $script_name --skip-docs my-app
     $script_name --ui my-app
     $script_name .    # Initialize in current directory
 
@@ -130,7 +133,7 @@ validate_environment() {
     log_info "Validating environment..."
 
     local required_commands=("go")
-    local optional_commands=("git" "bun")
+    local optional_commands=("git" "bun" "uv")
     local missing_required=()
     local missing_optional=()
 
@@ -194,6 +197,11 @@ check_existing_state() {
         existing+=("ui/")
     fi
 
+    # Check if docs directory exists
+    if [[ -d "$project_dir/docs" ]]; then
+        existing+=("docs/")
+    fi
+
     if [[ ${#existing[@]} -gt 0 ]]; then
         log_info "Found existing project files (will skip where appropriate):"
         for item in "${existing[@]}"; do
@@ -246,6 +254,10 @@ parse_args() {
                 ;;
             --skip-git)
                 SKIP_GIT=true
+                shift
+                ;;
+            --skip-docs)
+                SKIP_DOCS=true
                 shift
                 ;;
             --ui)
@@ -354,6 +366,7 @@ main() {
     echo "  Author:        $AUTHOR"
     echo "  Config Dir:    $HOME/.config/$PROJECT_NAME"
     echo "  Init UI:       $INIT_UI"
+    echo "  Skip Docs:     $SKIP_DOCS"
     if [[ "$DRY_RUN" == true ]]; then
         echo "  ${YELLOW}Mode:          DRY-RUN${NC}"
     fi
@@ -368,6 +381,14 @@ main() {
             log_error "bun is required for UI initialization (--ui flag) but is not installed"
             log_error "Install bun: https://bun.sh"
             return 1
+        fi
+    fi
+
+    # Validate uv is available for docs scaffolding
+    if [[ "$SKIP_DOCS" == false ]]; then
+        if ! command -v uv &> /dev/null; then
+            log_warning "uv is not installed, skipping docs scaffolding (install: https://docs.astral.sh/uv/)"
+            SKIP_DOCS=true
         fi
     fi
 
@@ -485,6 +506,196 @@ EOF
         log_info ".editorconfig already exists, skipping"
     fi
 
+    # Initialize mkdocs-material documentation
+    if [[ "$SKIP_DOCS" == true ]]; then
+        log_info "Skipping docs scaffolding (--skip-docs flag)"
+    elif [[ -d "docs" ]] && [[ "$DRY_RUN" == false ]]; then
+        log_info "docs/ directory already exists, skipping docs scaffolding"
+    else
+        # Initialize uv project in docs/
+        execute "uv init --name ${PROJECT_NAME}-docs docs" \
+                "Initializing uv project in docs/"
+
+        # Add mkdocs-material dependencies
+        execute "cd docs && uv add mkdocs-material 'mkdocs-git-revision-date-localized-plugin>=1.4' && cd .." \
+                "Adding mkdocs-material dependencies"
+
+        # Remove uv init scaffolding (placeholder files and nested .git)
+        if [[ "$DRY_RUN" == false ]]; then
+            rm -rf docs/.git
+            rm -f docs/hello.py docs/main.py docs/README.md
+        else
+            log_warning "[DRY-RUN] Would remove uv init scaffolding (docs/.git, docs/hello.py, docs/main.py, docs/README.md)"
+        fi
+
+        # Write mkdocs.yml
+        if [[ "$DRY_RUN" == false ]]; then
+            log_info "Creating docs/mkdocs.yml"
+            cat > docs/mkdocs.yml << EOF
+site_name: ${PROJECT_NAME} Documentation
+site_url: https://${PROJECT_NAME}.example.com
+site_description: "${PROJECT_NAME} documentation"
+edit_uri: ""
+
+extra_css:
+  - stylesheets/extra.css
+
+theme:
+  name: material
+  language: en
+  features:
+    - search.suggest
+    - search.highlight
+    - search.share
+    - navigation.indexes
+    - navigation.instant
+    - navigation.instant.prefetch
+    - navigation.instant.progress
+    - content.code.copy
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      toggle:
+        icon: material/lightbulb-outline
+        name: Switch to light mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: light blue
+      accent: indigo
+      toggle:
+        icon: material/lightbulb
+        name: Switch to dark mode
+
+plugins:
+  - git-revision-date-localized
+  - search
+
+nav:
+  - Welcome: index.md
+  - Getting Started: getting-started.md
+
+markdown_extensions:
+  # Python Markdown
+  - admonition
+  - meta
+  - footnotes
+  - attr_list
+  - def_list
+  - toc:
+      permalink: true
+
+  # Python Markdown Extensions
+  - pymdownx.highlight:
+      anchor_linenums: true
+      auto_title: false
+  - pymdownx.inlinehilite
+  - pymdownx.details
+  - pymdownx.tilde
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+EOF
+            log_success "Created docs/mkdocs.yml"
+        else
+            log_warning "[DRY-RUN] Would create docs/mkdocs.yml"
+        fi
+
+        # Write docs/.gitignore
+        if [[ "$DRY_RUN" == false ]]; then
+            log_info "Creating docs/.gitignore"
+            cat > docs/.gitignore << 'EOF'
+site/
+.venv/
+__pycache__/
+.cache/
+EOF
+            log_success "Created docs/.gitignore"
+        else
+            log_warning "[DRY-RUN] Would create docs/.gitignore"
+        fi
+
+        # Create docs/docs/ content directory
+        if [[ "$DRY_RUN" == false ]]; then
+            mkdir -p docs/docs/stylesheets
+        else
+            log_warning "[DRY-RUN] Would create docs/docs/stylesheets/"
+        fi
+
+        # Write docs/docs/index.md
+        if [[ "$DRY_RUN" == false ]]; then
+            log_info "Creating docs/docs/index.md"
+            cat > docs/docs/index.md << EOF
+# ${PROJECT_NAME}
+
+Welcome to the **${PROJECT_NAME}** documentation.
+
+## Quick Links
+
+| Topic | Description |
+|-------|-------------|
+| [Getting Started](getting-started.md) | Installation and first steps |
+EOF
+            log_success "Created docs/docs/index.md"
+        else
+            log_warning "[DRY-RUN] Would create docs/docs/index.md"
+        fi
+
+        # Write docs/docs/getting-started.md
+        if [[ "$DRY_RUN" == false ]]; then
+            log_info "Creating docs/docs/getting-started.md"
+            cat > docs/docs/getting-started.md << EOF
+# Getting Started
+
+## Installation
+
+\`\`\`bash
+go install ${GO_MODULE_PATH}@latest
+\`\`\`
+
+## Usage
+
+\`\`\`bash
+${PROJECT_NAME} --help
+\`\`\`
+EOF
+            log_success "Created docs/docs/getting-started.md"
+        else
+            log_warning "[DRY-RUN] Would create docs/docs/getting-started.md"
+        fi
+
+        # Write docs/docs/stylesheets/extra.css
+        if [[ "$DRY_RUN" == false ]]; then
+            log_info "Creating docs/docs/stylesheets/extra.css"
+            cat > docs/docs/stylesheets/extra.css << 'EOF'
+/* Compact navigation */
+.md-nav__item {
+  padding: 0.05rem 0;
+}
+
+/* Code block font size */
+.md-typeset code {
+  font-size: 0.8rem;
+}
+
+.md-typeset pre code {
+  font-size: 0.8rem;
+}
+EOF
+            log_success "Created docs/docs/stylesheets/extra.css"
+        else
+            log_warning "[DRY-RUN] Would create docs/docs/stylesheets/extra.css"
+        fi
+    fi
+
     # Initialize UI with React/shadcn/Tailwind
     if [[ "$INIT_UI" == true ]]; then
         if [[ -d "ui" ]] && [[ "$DRY_RUN" == false ]]; then
@@ -549,6 +760,10 @@ build/
 
 # UI (bun/React)
 ui/node_modules/
+
+# Docs (mkdocs-material)
+docs/.venv/
+docs/site/
 EOF
                 log_success "Created .gitignore"
             else
@@ -579,12 +794,21 @@ EOF
     log_success "Project initialization complete! 🎉"
     echo
     log_info "Next steps:"
-    echo "  1. Review the generated code in cmd/"
-    echo "  2. Update the project description in cmd/root.go"
-    echo "  3. Run 'go build' to build your application"
-    echo "  4. Run './$PROJECT_NAME --help' to see available commands"
+    local step=1
+    echo "  $step. Review the generated code in cmd/"
+    ((step++))
+    echo "  $step. Update the project description in cmd/root.go"
+    ((step++))
+    echo "  $step. Run 'go build' to build your application"
+    ((step++))
+    echo "  $step. Run './$PROJECT_NAME --help' to see available commands"
+    if [[ "$SKIP_DOCS" == false ]]; then
+        ((step++))
+        echo "  $step. cd docs/ && uv run mkdocs serve    # Start docs dev server"
+    fi
     if [[ "$INIT_UI" == true ]]; then
-        echo "  5. cd ui/ && bun dev    # Start the React development server"
+        ((step++))
+        echo "  $step. cd ui/ && bun dev    # Start the React development server"
     fi
     echo
 }
