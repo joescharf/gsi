@@ -21,6 +21,7 @@ VERBOSE=false
 SKIP_BMAD=false
 SKIP_GIT=false
 SKIP_DOCS=false
+ONLY_DOCS=false
 INIT_UI=false
 PROJECT_NAME=""
 
@@ -102,6 +103,7 @@ Options:
     --skip-bmad         Skip BMAD method installation
     --skip-git          Skip git initialization and commit
     --skip-docs         Skip mkdocs-material documentation scaffolding
+    --only-docs         Only add docs scaffolding (skip everything else)
     --ui                Initialize a React/shadcn/Tailwind UI in ui/ subdirectory (requires bun)
     -h, --help          Show this help message
 
@@ -111,6 +113,7 @@ Examples:
     $script_name --module github.com/myorg/myapp --dry-run my-app
     $script_name --skip-bmad --skip-git my-app
     $script_name --skip-docs my-app
+    $script_name --only-docs my-app
     $script_name --ui my-app
     $script_name .    # Initialize in current directory
 
@@ -260,6 +263,10 @@ parse_args() {
                 SKIP_DOCS=true
                 shift
                 ;;
+            --only-docs)
+                ONLY_DOCS=true
+                shift
+                ;;
             --ui)
                 INIT_UI=true
                 shift
@@ -367,16 +374,33 @@ main() {
     echo "  Config Dir:    $HOME/.config/$PROJECT_NAME"
     echo "  Init UI:       $INIT_UI"
     echo "  Skip Docs:     $SKIP_DOCS"
+    echo "  Only Docs:     $ONLY_DOCS"
     if [[ "$DRY_RUN" == true ]]; then
         echo "  ${YELLOW}Mode:          DRY-RUN${NC}"
     fi
     echo
 
-    # Validate environment
-    validate_environment || return 1
+    # Validate mutually exclusive flags
+    if [[ "$ONLY_DOCS" == true ]] && [[ "$SKIP_DOCS" == true ]]; then
+        log_error "--only-docs and --skip-docs are mutually exclusive"
+        return 1
+    fi
+
+    # Validate environment (skip Go requirement for --only-docs)
+    if [[ "$ONLY_DOCS" == false ]]; then
+        validate_environment || return 1
+    else
+        log_info "Validating environment (docs-only mode)..."
+        if ! command -v uv &> /dev/null; then
+            log_error "uv is required for docs scaffolding but is not installed"
+            log_error "Install uv: https://docs.astral.sh/uv/"
+            return 1
+        fi
+        log_success "Environment validation complete"
+    fi
 
     # Validate bun is available if --ui is requested
-    if [[ "$INIT_UI" == true ]]; then
+    if [[ "$INIT_UI" == true ]] && [[ "$ONLY_DOCS" == false ]]; then
         if ! command -v bun &> /dev/null; then
             log_error "bun is required for UI initialization (--ui flag) but is not installed"
             log_error "Install bun: https://bun.sh"
@@ -402,6 +426,9 @@ main() {
     echo
     log_info "Starting project initialization..."
     echo
+
+    # When --only-docs is set, skip everything except docs scaffolding
+    if [[ "$ONLY_DOCS" == false ]]; then
 
     # Install BMAD method framework
     if [[ "$SKIP_BMAD" == true ]]; then
@@ -854,32 +881,41 @@ MAKEEOF
         log_info "Makefile already exists, skipping"
     fi
 
+    fi # end --only-docs guard
+
     # Initialize mkdocs-material documentation
     if [[ "$SKIP_DOCS" == true ]]; then
         log_info "Skipping docs scaffolding (--skip-docs flag)"
-    elif [[ -d "docs" ]] && [[ "$DRY_RUN" == false ]]; then
-        log_info "docs/ directory already exists, skipping docs scaffolding"
     else
-        # Initialize uv project in docs/
-        execute "uv init --name ${PROJECT_NAME}-docs docs" \
-                "Initializing uv project in docs/"
+        # Initialize uv project in docs/ (if pyproject.toml doesn't exist yet)
+        if [[ ! -f "docs/pyproject.toml" ]] || [[ "$DRY_RUN" == true ]]; then
+            execute "uv init --name ${PROJECT_NAME}-docs docs" \
+                    "Initializing uv project in docs/"
 
-        # Add mkdocs-material dependencies
-        execute "cd docs && uv add mkdocs-material 'mkdocs-git-revision-date-localized-plugin>=1.4' && cd .." \
-                "Adding mkdocs-material dependencies"
-
-        # Remove uv init scaffolding (placeholder files and nested .git)
-        if [[ "$DRY_RUN" == false ]]; then
-            rm -rf docs/.git
-            rm -f docs/hello.py docs/main.py docs/README.md
+            # Remove uv init scaffolding (placeholder files and nested .git)
+            if [[ "$DRY_RUN" == false ]]; then
+                rm -rf docs/.git
+                rm -f docs/hello.py docs/main.py docs/README.md
+            else
+                log_warning "[DRY-RUN] Would remove uv init scaffolding (docs/.git, docs/hello.py, docs/main.py, docs/README.md)"
+            fi
         else
-            log_warning "[DRY-RUN] Would remove uv init scaffolding (docs/.git, docs/hello.py, docs/main.py, docs/README.md)"
+            log_info "docs/pyproject.toml already exists, skipping uv init"
+        fi
+
+        # Add mkdocs-material dependencies (if not already present)
+        if [[ -f "docs/pyproject.toml" ]] && ! grep -q "mkdocs-material" "docs/pyproject.toml" 2>/dev/null || [[ "$DRY_RUN" == true ]]; then
+            execute "cd docs && uv add mkdocs-material 'mkdocs-git-revision-date-localized-plugin>=1.4' && cd .." \
+                    "Adding mkdocs-material dependencies"
+        else
+            log_info "mkdocs-material already in docs/pyproject.toml, skipping"
         fi
 
         # Write mkdocs.yml
-        if [[ "$DRY_RUN" == false ]]; then
-            log_info "Creating docs/mkdocs.yml"
-            cat > docs/mkdocs.yml << EOF
+        if [[ ! -f "docs/mkdocs.yml" ]] || [[ "$DRY_RUN" == true ]]; then
+            if [[ "$DRY_RUN" == false ]]; then
+                log_info "Creating docs/mkdocs.yml"
+                cat > docs/mkdocs.yml << EOF
 site_name: ${PROJECT_NAME} Documentation
 site_url: https://${PROJECT_NAME}.example.com
 site_description: "${PROJECT_NAME} documentation"
@@ -952,23 +988,30 @@ markdown_extensions:
       emoji_index: !!python/name:material.extensions.emoji.twemoji
       emoji_generator: !!python/name:material.extensions.emoji.to_svg
 EOF
-            log_success "Created docs/mkdocs.yml"
+                log_success "Created docs/mkdocs.yml"
+            else
+                log_warning "[DRY-RUN] Would create docs/mkdocs.yml"
+            fi
         else
-            log_warning "[DRY-RUN] Would create docs/mkdocs.yml"
+            log_info "docs/mkdocs.yml already exists, skipping"
         fi
 
         # Write docs/.gitignore
-        if [[ "$DRY_RUN" == false ]]; then
-            log_info "Creating docs/.gitignore"
-            cat > docs/.gitignore << 'EOF'
+        if [[ ! -f "docs/.gitignore" ]] || [[ "$DRY_RUN" == true ]]; then
+            if [[ "$DRY_RUN" == false ]]; then
+                log_info "Creating docs/.gitignore"
+                cat > docs/.gitignore << 'EOF'
 site/
 .venv/
 __pycache__/
 .cache/
 EOF
-            log_success "Created docs/.gitignore"
+                log_success "Created docs/.gitignore"
+            else
+                log_warning "[DRY-RUN] Would create docs/.gitignore"
+            fi
         else
-            log_warning "[DRY-RUN] Would create docs/.gitignore"
+            log_info "docs/.gitignore already exists, skipping"
         fi
 
         # Create docs/docs/ content directory
@@ -979,9 +1022,10 @@ EOF
         fi
 
         # Write docs/docs/index.md
-        if [[ "$DRY_RUN" == false ]]; then
-            log_info "Creating docs/docs/index.md"
-            cat > docs/docs/index.md << EOF
+        if [[ ! -f "docs/docs/index.md" ]] || [[ "$DRY_RUN" == true ]]; then
+            if [[ "$DRY_RUN" == false ]]; then
+                log_info "Creating docs/docs/index.md"
+                cat > docs/docs/index.md << EOF
 # ${PROJECT_NAME}
 
 Welcome to the **${PROJECT_NAME}** documentation.
@@ -992,15 +1036,19 @@ Welcome to the **${PROJECT_NAME}** documentation.
 |-------|-------------|
 | [Getting Started](getting-started.md) | Installation and first steps |
 EOF
-            log_success "Created docs/docs/index.md"
+                log_success "Created docs/docs/index.md"
+            else
+                log_warning "[DRY-RUN] Would create docs/docs/index.md"
+            fi
         else
-            log_warning "[DRY-RUN] Would create docs/docs/index.md"
+            log_info "docs/docs/index.md already exists, skipping"
         fi
 
         # Write docs/docs/getting-started.md
-        if [[ "$DRY_RUN" == false ]]; then
-            log_info "Creating docs/docs/getting-started.md"
-            cat > docs/docs/getting-started.md << EOF
+        if [[ ! -f "docs/docs/getting-started.md" ]] || [[ "$DRY_RUN" == true ]]; then
+            if [[ "$DRY_RUN" == false ]]; then
+                log_info "Creating docs/docs/getting-started.md"
+                cat > docs/docs/getting-started.md << EOF
 # Getting Started
 
 ## Installation
@@ -1015,15 +1063,19 @@ go install ${GO_MODULE_PATH}@latest
 ${PROJECT_NAME} --help
 \`\`\`
 EOF
-            log_success "Created docs/docs/getting-started.md"
+                log_success "Created docs/docs/getting-started.md"
+            else
+                log_warning "[DRY-RUN] Would create docs/docs/getting-started.md"
+            fi
         else
-            log_warning "[DRY-RUN] Would create docs/docs/getting-started.md"
+            log_info "docs/docs/getting-started.md already exists, skipping"
         fi
 
         # Write docs/docs/stylesheets/extra.css
-        if [[ "$DRY_RUN" == false ]]; then
-            log_info "Creating docs/docs/stylesheets/extra.css"
-            cat > docs/docs/stylesheets/extra.css << 'EOF'
+        if [[ ! -f "docs/docs/stylesheets/extra.css" ]] || [[ "$DRY_RUN" == true ]]; then
+            if [[ "$DRY_RUN" == false ]]; then
+                log_info "Creating docs/docs/stylesheets/extra.css"
+                cat > docs/docs/stylesheets/extra.css << 'EOF'
 /* Compact navigation */
 .md-nav__item {
   padding: 0.05rem 0;
@@ -1038,11 +1090,16 @@ EOF
   font-size: 0.8rem;
 }
 EOF
-            log_success "Created docs/docs/stylesheets/extra.css"
+                log_success "Created docs/docs/stylesheets/extra.css"
+            else
+                log_warning "[DRY-RUN] Would create docs/docs/stylesheets/extra.css"
+            fi
         else
-            log_warning "[DRY-RUN] Would create docs/docs/stylesheets/extra.css"
+            log_info "docs/docs/stylesheets/extra.css already exists, skipping"
         fi
     fi
+
+    if [[ "$ONLY_DOCS" == false ]]; then
 
     # Initialize UI with React/shadcn/Tailwind
     if [[ "$INIT_UI" == true ]]; then
@@ -1139,30 +1196,38 @@ EOF
         log_info "Skipping git initialization (--skip-git flag)"
     fi
 
+    fi # end --only-docs guard (UI + git)
+
     echo
     log_success "Project initialization complete! 🎉"
     echo
     log_info "Next steps:"
     local step=1
-    echo "  $step. Review the generated code in cmd/"
-    ((step++))
-    echo "  $step. Update the project description in cmd/root.go"
-    ((step++))
-    echo "  $step. Run 'make build' to build your application"
-    ((step++))
-    echo "  $step. Run 'make run' or './bin/$PROJECT_NAME --help' to see available commands"
-    ((step++))
-    echo "  $step. Run 'make serve' to start the embedded web UI server"
-    if [[ "$SKIP_DOCS" == false ]]; then
-        ((step++))
+    if [[ "$ONLY_DOCS" == true ]]; then
         echo "  $step. Run 'make docs-serve' to start the docs dev server"
-    fi
-    if [[ "$INIT_UI" == true ]]; then
         ((step++))
-        echo "  $step. Run 'make ui-dev' to start the React dev server"
+        echo "  $step. Edit docs in docs/docs/"
+    else
+        echo "  $step. Review the generated code in cmd/"
+        ((step++))
+        echo "  $step. Update the project description in cmd/root.go"
+        ((step++))
+        echo "  $step. Run 'make build' to build your application"
+        ((step++))
+        echo "  $step. Run 'make run' or './bin/$PROJECT_NAME --help' to see available commands"
+        ((step++))
+        echo "  $step. Run 'make serve' to start the embedded web UI server"
+        if [[ "$SKIP_DOCS" == false ]]; then
+            ((step++))
+            echo "  $step. Run 'make docs-serve' to start the docs dev server"
+        fi
+        if [[ "$INIT_UI" == true ]]; then
+            ((step++))
+            echo "  $step. Run 'make ui-dev' to start the React dev server"
+        fi
+        ((step++))
+        echo "  $step. Run 'make help' to see all available targets"
     fi
-    ((step++))
-    echo "  $step. Run 'make help' to see all available targets"
     echo
 }
 
