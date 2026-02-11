@@ -7,8 +7,9 @@ import (
 
 func TestRenderWithVariables(t *testing.T) {
 	data := Data{
-		ProjectName:  "myapp",
-		GoModulePath: "github.com/example/myapp",
+		ProjectName:   "myapp",
+		GoModulePath:  "github.com/example/myapp",
+		GoModuleOwner: "example",
 	}
 
 	tests := []struct {
@@ -27,6 +28,9 @@ func TestRenderWithVariables(t *testing.T) {
 		{"docs_getting_started_md.tmpl", []string{"go install github.com/example/myapp@latest", "myapp --help"}},
 		{"docs_extra_css.tmpl", []string{".md-nav__item", "font-size"}},
 		{"gitignore.tmpl", []string{"bin/", ".DS_Store", "vendor/"}},
+		{"goreleaser_yml.tmpl", []string{"project_name: myapp", "github.com/example/myapp/cmd.version", "ghcr.io/example/myapp"}},
+		{"dockerfile.tmpl", []string{"COPY $TARGETPLATFORM/myapp", "ENTRYPOINT"}},
+		{"dockerignore.tmpl", []string{".git", "dist/"}},
 	}
 
 	for _, tt := range tests {

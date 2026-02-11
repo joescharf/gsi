@@ -10,9 +10,17 @@ import (
 )
 
 func (s *Scaffolder) templateData() templates.Data {
+	// Derive owner from module path (e.g., "github.com/joescharf/myapp" -> "joescharf")
+	owner := ""
+	parts := strings.Split(s.Config.GoModulePath, "/")
+	if len(parts) >= 2 {
+		owner = parts[1]
+	}
+
 	return templates.Data{
-		ProjectName:  s.Config.ProjectName,
-		GoModulePath: s.Config.GoModulePath,
+		ProjectName:   s.Config.ProjectName,
+		GoModulePath:  s.Config.GoModulePath,
+		GoModuleOwner: owner,
 	}
 }
 
@@ -148,6 +156,39 @@ func (s *Scaffolder) stepGenerateMakefile() error {
 	return WriteTemplateFile(
 		filepath.Join(s.Config.ProjectDir, "Makefile"),
 		"makefile.tmpl",
+		s.templateData(),
+		s.Config.DryRun,
+		s.Logger,
+	)
+}
+
+// stepGenerateGoreleaser writes .goreleaser.yml from template.
+func (s *Scaffolder) stepGenerateGoreleaser() error {
+	return WriteTemplateFile(
+		filepath.Join(s.Config.ProjectDir, ".goreleaser.yml"),
+		"goreleaser_yml.tmpl",
+		s.templateData(),
+		s.Config.DryRun,
+		s.Logger,
+	)
+}
+
+// stepGenerateDockerfile writes Dockerfile from template.
+func (s *Scaffolder) stepGenerateDockerfile() error {
+	return WriteTemplateFile(
+		filepath.Join(s.Config.ProjectDir, "Dockerfile"),
+		"dockerfile.tmpl",
+		s.templateData(),
+		s.Config.DryRun,
+		s.Logger,
+	)
+}
+
+// stepGenerateDockerignore writes .dockerignore from template.
+func (s *Scaffolder) stepGenerateDockerignore() error {
+	return WriteTemplateFile(
+		filepath.Join(s.Config.ProjectDir, ".dockerignore"),
+		"dockerignore.tmpl",
 		s.templateData(),
 		s.Config.DryRun,
 		s.Logger,
@@ -367,4 +408,3 @@ func (s *Scaffolder) stepPrintSummary() {
 	}
 	s.Logger.Plain("")
 }
-

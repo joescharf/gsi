@@ -108,6 +108,102 @@ func TestStepPrintSummaryOnlyDocs(t *testing.T) {
 	}
 }
 
+func TestStepGenerateGoreleaserIdempotent(t *testing.T) {
+	s, _, _ := testScaffolder(t, false)
+
+	if err := s.stepGenerateGoreleaser(); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(s.Config.ProjectDir, ".goreleaser.yml")
+	if _, err := os.Stat(path); err != nil {
+		t.Fatal("expected .goreleaser.yml to be created")
+	}
+
+	// Second call should skip
+	if err := s.stepGenerateGoreleaser(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestStepGenerateGoreleaserDryRun(t *testing.T) {
+	s, _, stderr := testScaffolder(t, true)
+
+	if err := s.stepGenerateGoreleaser(); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(s.Config.ProjectDir, ".goreleaser.yml")
+	if _, err := os.Stat(path); err == nil {
+		t.Error("file should not exist in dry-run mode")
+	}
+	if !strings.Contains(stderr.String(), "[DRY-RUN]") {
+		t.Errorf("expected dry-run message, got %q", stderr.String())
+	}
+}
+
+func TestStepGenerateDockerfileIdempotent(t *testing.T) {
+	s, _, _ := testScaffolder(t, false)
+
+	if err := s.stepGenerateDockerfile(); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(s.Config.ProjectDir, "Dockerfile")
+	if _, err := os.Stat(path); err != nil {
+		t.Fatal("expected Dockerfile to be created")
+	}
+
+	// Second call should skip
+	if err := s.stepGenerateDockerfile(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestStepGenerateDockerfileDryRun(t *testing.T) {
+	s, _, stderr := testScaffolder(t, true)
+
+	if err := s.stepGenerateDockerfile(); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(s.Config.ProjectDir, "Dockerfile")
+	if _, err := os.Stat(path); err == nil {
+		t.Error("file should not exist in dry-run mode")
+	}
+	if !strings.Contains(stderr.String(), "[DRY-RUN]") {
+		t.Errorf("expected dry-run message, got %q", stderr.String())
+	}
+}
+
+func TestStepGenerateDockerignoreIdempotent(t *testing.T) {
+	s, _, _ := testScaffolder(t, false)
+
+	if err := s.stepGenerateDockerignore(); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(s.Config.ProjectDir, ".dockerignore")
+	if _, err := os.Stat(path); err != nil {
+		t.Fatal("expected .dockerignore to be created")
+	}
+
+	// Second call should skip
+	if err := s.stepGenerateDockerignore(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestStepGenerateDockerignoreDryRun(t *testing.T) {
+	s, _, stderr := testScaffolder(t, true)
+
+	if err := s.stepGenerateDockerignore(); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(s.Config.ProjectDir, ".dockerignore")
+	if _, err := os.Stat(path); err == nil {
+		t.Error("file should not exist in dry-run mode")
+	}
+	if !strings.Contains(stderr.String(), "[DRY-RUN]") {
+		t.Errorf("expected dry-run message, got %q", stderr.String())
+	}
+}
+
 func TestStepPrintSummaryFull(t *testing.T) {
 	s, stdout, _ := testScaffolder(t, false)
 	s.stepPrintSummary()

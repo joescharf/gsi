@@ -11,8 +11,9 @@ var templateFS embed.FS
 
 // Data holds the variables available to all templates.
 type Data struct {
-	ProjectName  string
-	GoModulePath string
+	ProjectName   string
+	GoModulePath  string
+	GoModuleOwner string // derived: 2nd segment of GoModulePath (e.g., "joescharf")
 }
 
 // Render executes the named template with the given data and returns the result.

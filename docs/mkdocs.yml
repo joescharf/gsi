@@ -39,6 +39,11 @@ plugins:
 nav:
   - Welcome: index.md
   - Getting Started: getting-started.md
+  - CLI Reference: cli-reference.md
+  - What Gets Scaffolded: scaffolded-output.md
+  - Configuration: configuration.md
+  - Releasing: releasing.md
+  - Contributing: contributing.md
 
 markdown_extensions:
   # Python Markdown

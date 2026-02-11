@@ -45,6 +45,15 @@ vet: ## Run go vet
 fmt: ## Run gofmt
 	gofmt -s -w .
 
+##@ Release
+.PHONY: release release-snapshot
+
+release: ## Create a release with goreleaser
+	goreleaser release --clean
+
+release-snapshot: ## Create a snapshot release (no publish)
+	goreleaser release --snapshot --clean --skip homebrew,docker
+
 ##@ Help
 .PHONY: help
 

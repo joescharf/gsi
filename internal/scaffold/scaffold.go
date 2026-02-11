@@ -155,6 +155,9 @@ func (s *Scaffolder) Run() error {
 			s.stepGenerateEmbedGo,
 			s.stepGoModTidy,
 			s.stepGenerateMakefile,
+			s.stepGenerateGoreleaser,
+			s.stepGenerateDockerfile,
+			s.stepGenerateDockerignore,
 		}
 		for _, step := range steps {
 			if err := step(); err != nil {
