@@ -36,6 +36,9 @@ build/
 .env
 .env.local
 
+# Claude Code
+.claude/settings.local.json
+
 # Docs (mkdocs-material)
 docs/.venv/
 docs/site/
