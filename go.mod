@@ -1,4 +1,4 @@
-module github.com/joescharf/go-superinit
+module github.com/joescharf/gsi
 
 go 1.25.1
 

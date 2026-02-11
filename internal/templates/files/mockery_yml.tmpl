@@ -1,0 +1,8 @@
+with-expecter: true
+packages:
+  {{.GoModulePath}}:
+    config:
+      recursive: true
+      dir: "{{`{{.InterfaceDir}}`}}/mocks"
+      mockname: "Mock{{`{{.InterfaceName}}`}}"
+      outpkg: "mocks"

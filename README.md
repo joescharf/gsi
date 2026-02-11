@@ -1,6 +1,6 @@
-# go-superinit
+# gsi
 
-A Zsh script that scaffolds new Go CLI projects with best practices and tooling.
+A Go CLI tool that scaffolds new Go projects with best practices and tooling.
 
 ## What it creates
 
@@ -18,10 +18,16 @@ A Zsh script that scaffolds new Go CLI projects with best practices and tooling.
 - **Required:** `go`
 - **Optional:** `git`, `bun` (for BMAD + UI), `uv` (for docs)
 
+## Installation
+
+```sh
+go install github.com/joescharf/gsi@latest
+```
+
 ## Usage
 
 ```sh
-./go-superinit.zsh [OPTIONS] [PROJECT_NAME]
+gsi [OPTIONS] [PROJECT_NAME]
 ```
 
 ### Options
@@ -35,30 +41,31 @@ A Zsh script that scaffolds new Go CLI projects with best practices and tooling.
 | `--skip-bmad` | Skip BMAD method installation |
 | `--skip-git` | Skip git initialization and commit |
 | `--skip-docs` | Skip mkdocs-material documentation scaffolding |
+| `--only-docs` | Only add docs scaffolding (skip everything else) |
 | `--ui` | Initialize a React/shadcn/Tailwind UI in `ui/` |
 
 ### Examples
 
 ```sh
 # Basic project
-./go-superinit.zsh my-app
+gsi my-app
 
 # Custom module path, dry-run
-./go-superinit.zsh --module github.com/myorg/myapp --dry-run my-app
+gsi --module github.com/myorg/myapp --dry-run my-app
 
 # Skip docs and BMAD
-./go-superinit.zsh --skip-docs --skip-bmad my-app
+gsi --skip-docs --skip-bmad my-app
 
 # With UI
-./go-superinit.zsh --ui my-app
+gsi --ui my-app
 
 # Initialize in current directory
-./go-superinit.zsh .
+gsi .
 ```
 
 ## Docs scaffolding
 
-By default, `go-superinit` creates a `docs/` directory with a [mkdocs-material](https://squidfunk.github.io/mkdocs-material/) documentation site managed by [uv](https://docs.astral.sh/uv/):
+By default, `gsi` creates a `docs/` directory with a [mkdocs-material](https://squidfunk.github.io/mkdocs-material/) documentation site managed by [uv](https://docs.astral.sh/uv/):
 
 ```
 docs/
@@ -83,4 +90,4 @@ If `uv` is not installed, docs scaffolding is skipped automatically with a warni
 
 ## Idempotency
 
-The script is idempotent -- it skips steps that have already been completed (e.g., existing `go.mod`, `cmd/`, `docs/`, `.git/`).
+The tool is idempotent -- it skips steps that have already been completed (e.g., existing `go.mod`, `cmd/`, `docs/`, `.git/`).

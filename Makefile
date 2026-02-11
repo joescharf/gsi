@@ -1,20 +1,15 @@
-# Makefile
-BINARY_NAME := $(shell basename $(CURDIR))
+# Makefile for gsi
+BINARY_NAME := gsi
 MODULE := $(shell head -1 go.mod | awk '{print $$2}')
 VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 COMMIT := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 BUILD_DATE := $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
-LDFLAGS := -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT) -X main.date=$(BUILD_DATE)"
+LDFLAGS := -ldflags "-X $(MODULE)/cmd.version=$(VERSION) -X $(MODULE)/cmd.commit=$(COMMIT) -X $(MODULE)/cmd.date=$(BUILD_DATE)"
 
-# Conditionally include UI and docs targets if their directories exist
-ALL_TARGETS := build
-$(if $(wildcard ui/package.json),$(eval ALL_TARGETS += ui-build ui-embed))
-$(if $(wildcard docs/mkdocs.yml),$(eval ALL_TARGETS += docs-build))
-
-.DEFAULT_GOAL := all
+.DEFAULT_GOAL := build
 
 ##@ App
-.PHONY: build install run serve clean tidy test lint vet fmt mocks
+.PHONY: build install run clean tidy test test-cover lint vet fmt
 
 build: ## Build the Go binary
 	go build $(LDFLAGS) -o bin/$(BINARY_NAME) .
@@ -24,9 +19,6 @@ install: ## Install the binary to $GOPATH/bin
 
 run: build ## Build and run the binary
 	./bin/$(BINARY_NAME)
-
-serve: build ## Start the embedded web UI server
-	./bin/$(BINARY_NAME) serve
 
 clean: ## Remove build artifacts
 	rm -rf bin/
@@ -52,58 +44,6 @@ vet: ## Run go vet
 
 fmt: ## Run gofmt
 	gofmt -s -w .
-
-mocks: ## Generate mocks with mockery
-	@which mockery > /dev/null 2>&1 || { echo "Install mockery: go install github.com/vektra/mockery/v2@latest"; exit 1; }
-	mockery
-
-##@ Docs (mkdocs-material via uv)
-.PHONY: docs-serve docs-build docs-deps
-
-docs-serve: ## Serve docs locally (requires uv + docs/ directory)
-	@[ -d docs ] && [ -f docs/mkdocs.yml ] || { echo "No docs/ directory with mkdocs.yml found."; exit 1; }
-	cd docs && uv run mkdocs serve
-
-docs-build: ## Build docs site (requires uv + docs/ directory)
-	@[ -d docs ] && [ -f docs/mkdocs.yml ] || { echo "No docs/ directory with mkdocs.yml found."; exit 1; }
-	cd docs && uv run mkdocs build
-
-docs-deps: ## Install doc dependencies (requires uv + docs/ directory)
-	@[ -d docs ] && [ -f docs/pyproject.toml ] || { echo "No docs/ directory with pyproject.toml found."; exit 1; }
-	cd docs && uv sync
-
-##@ UI (React/shadcn via bun)
-.PHONY: ui-dev ui-build ui-embed ui-deps
-
-ui-dev: ## Start UI dev server (requires bun + ui/ directory)
-	@[ -d ui ] && [ -f ui/package.json ] || { echo "No ui/ directory found. Re-run go-superinit with --ui to create one."; exit 1; }
-	cd ui && bun dev
-
-ui-build: ## Build UI for production (requires bun + ui/ directory)
-	@[ -d ui ] && [ -f ui/package.json ] || { echo "No ui/ directory found. Re-run go-superinit with --ui to create one."; exit 1; }
-	cd ui && bun run build
-
-ui-embed: ## Copy built UI into internal/ui/dist for embedding
-	@[ -d ui/dist ] || { echo "No ui/dist/ directory found. Run 'make ui-build' first."; exit 1; }
-	rm -rf internal/ui/dist/*
-	cp -r ui/dist/* internal/ui/dist/
-
-ui-deps: ## Install UI dependencies (requires bun + ui/ directory)
-	@[ -d ui ] && [ -f ui/package.json ] || { echo "No ui/ directory found. Re-run go-superinit with --ui to create one."; exit 1; }
-	cd ui && bun install
-
-##@ All
-.PHONY: all deps dev
-
-all: $(ALL_TARGETS) ## Build all existing artifacts (app + UI + docs)
-
-deps: tidy ## Install all dependencies
-	@[ -d docs ] && [ -f docs/pyproject.toml ] && (cd docs && uv sync) || true
-	@[ -d ui ] && [ -f ui/package.json ] && (cd ui && bun install) || true
-
-dev: ## Start all dev servers (app + docs + UI) in parallel
-	@echo "Starting dev servers..."
-	@$(MAKE) -j3 run docs-serve ui-dev 2>/dev/null || $(MAKE) run
 
 ##@ Help
 .PHONY: help

@@ -42,7 +42,7 @@ gsi version        # Display gsi version
 
 ### 2. Configuration Management
 
-**Configuration File Location:** `~/.config/go-superinit/settings.yaml`
+**Configuration File Location:** `~/.config/gsi/settings.yaml`
 
 **First Run Behavior:**
 
@@ -82,7 +82,7 @@ custom_commands:
 templates:
   default:
     type: "local"
-    path: "~/.config/go-superinit/templates/standard"
+    path: "~/.config/gsi/templates/standard"
   web-api:
     type: "git"
     url: "https://github.com/username/go-web-template"
@@ -258,7 +258,7 @@ Available variables for templating:
 ### Code Structure
 
 ```
-go-superinit/
+gsi/
 ├── cmd/
 │   └── gsi/
 │       └── main.go

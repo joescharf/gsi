@@ -1,77 +1,81 @@
-/*
-Copyright © 2025 Joe Scharf joe@joescharf.com
-
-*/
 package cmd
 
 import (
 	"fmt"
 	"os"
 
+	"github.com/joescharf/gsi/internal/scaffold"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
 
-var cfgFile string
-
-// rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
-	Use:   "go-superinit",
-	Short: "A brief description of your application",
-	Long: `A longer description that spans multiple lines and likely contains
-examples and usage of using your application. For example:
+	Use:   "gsi [project-name]",
+	Short: "Initialize a Go project with best practices and tooling",
+	Long: `gsi scaffolds a new Go project with cobra, viper,
+mkdocs-material documentation, an embedded web UI, mockery, editorconfig,
+and optional React/shadcn/Tailwind frontend.
 
-Cobra is a CLI library for Go that empowers applications.
-This application is a tool to generate the needed files
-to quickly create a Cobra application.`,
-	// Uncomment the following line if your bare application
-	// has an action associated with it:
-	// Run: func(cmd *cobra.Command, args []string) { },
+Examples:
+  gsi my-awesome-app
+  gsi --author "Jane Doe jane@example.com" my-app
+  gsi --module github.com/myorg/myapp --dry-run my-app
+  gsi --skip-bmad --skip-git my-app
+  gsi --only-docs my-app
+  gsi --ui my-app
+  gsi .    # Initialize in current directory`,
+	Args: cobra.MaximumNArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		if len(args) == 0 {
+			return fmt.Errorf("project name is required (use '.' for current directory)")
+		}
+
+		cfg := scaffold.Config{
+			ProjectName:  args[0],
+			Author:       viper.GetString("author"),
+			GoModulePath: viper.GetString("module"),
+			DryRun:       viper.GetBool("dry-run"),
+			Verbose:      viper.GetBool("verbose"),
+			SkipBmad:     viper.GetBool("skip-bmad"),
+			SkipGit:      viper.GetBool("skip-git"),
+			SkipDocs:     viper.GetBool("skip-docs"),
+			OnlyDocs:     viper.GetBool("only-docs"),
+			InitUI:       viper.GetBool("ui"),
+		}
+
+		return scaffold.NewScaffolder(cfg).Run()
+	},
 }
 
-// Execute adds all child commands to the root command and sets flags appropriately.
-// This is called by main.main(). It only needs to happen once to the rootCmd.
+// Execute is the CLI entry point called by main.
 func Execute() {
-	err := rootCmd.Execute()
-	if err != nil {
+	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)
 	}
 }
 
 func init() {
-	cobra.OnInitialize(initConfig)
+	rootCmd.Flags().StringP("author", "a", "Joe Scharf joe@joescharf.com", "Author name and email")
+	rootCmd.Flags().StringP("module", "m", "", "Go module path (default: github.com/joescharf/<project>)")
+	rootCmd.Flags().BoolP("dry-run", "d", false, "Show what would be done without executing")
+	rootCmd.Flags().BoolP("verbose", "v", false, "Enable verbose output")
+	rootCmd.Flags().Bool("skip-bmad", false, "Skip BMAD method installation")
+	rootCmd.Flags().Bool("skip-git", false, "Skip git initialization and commit")
+	rootCmd.Flags().Bool("skip-docs", false, "Skip mkdocs-material documentation scaffolding")
+	rootCmd.Flags().Bool("only-docs", false, "Only add docs scaffolding (skip everything else)")
+	rootCmd.Flags().Bool("ui", false, "Initialize a React/shadcn/Tailwind UI in ui/ subdirectory")
 
-	// Here you will define your flags and configuration settings.
-	// Cobra supports persistent flags, which, if defined here,
-	// will be global for your application.
+	// Bind all flags to viper
+	viper.BindPFlag("author", rootCmd.Flags().Lookup("author"))
+	viper.BindPFlag("module", rootCmd.Flags().Lookup("module"))
+	viper.BindPFlag("dry-run", rootCmd.Flags().Lookup("dry-run"))
+	viper.BindPFlag("verbose", rootCmd.Flags().Lookup("verbose"))
+	viper.BindPFlag("skip-bmad", rootCmd.Flags().Lookup("skip-bmad"))
+	viper.BindPFlag("skip-git", rootCmd.Flags().Lookup("skip-git"))
+	viper.BindPFlag("skip-docs", rootCmd.Flags().Lookup("skip-docs"))
+	viper.BindPFlag("only-docs", rootCmd.Flags().Lookup("only-docs"))
+	viper.BindPFlag("ui", rootCmd.Flags().Lookup("ui"))
 
-	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.go-superinit.yaml)")
-
-	// Cobra also supports local flags, which will only run
-	// when this action is called directly.
-	rootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
-}
-
-// initConfig reads in config file and ENV variables if set.
-func initConfig() {
-	if cfgFile != "" {
-		// Use config file from the flag.
-		viper.SetConfigFile(cfgFile)
-	} else {
-		// Find home directory.
-		home, err := os.UserHomeDir()
-		cobra.CheckErr(err)
-
-		// Search config in home directory with name ".go-superinit" (without extension).
-		viper.AddConfigPath(home)
-		viper.SetConfigType("yaml")
-		viper.SetConfigName(".go-superinit")
-	}
-
-	viper.AutomaticEnv() // read in environment variables that match
-
-	// If a config file is found, read it in.
-	if err := viper.ReadInConfig(); err == nil {
-		fmt.Fprintln(os.Stderr, "Using config file:", viper.ConfigFileUsed())
-	}
+	// Set defaults via viper
+	viper.SetDefault("author", "Joe Scharf joe@joescharf.com")
 }
