@@ -68,29 +68,24 @@ release:
   ids:
     - {{.ProjectName}}-archive
     - {{.ProjectName}}-linux-archive
-  draft: true
-  replace_existing_draft: true
+  draft: false
 
 snapshot:
   version_template: "{{"{{"}} incpatch .Version {{"}}"}}-devel"
 
 # Uncomment and configure for Homebrew distribution:
-# homebrew_casks:
-#   - name: {{.ProjectName}}
-#     ids:
-#       - {{.ProjectName}}-archive
-#     binaries:
-#       - {{.ProjectName}}
-#     repository:
+# brews:
+#   - repository:
 #       owner: {{.GoModuleOwner}}
 #       name: homebrew-tap
-#       token: "{{"{{"}} .Env.HOMEBREW_TAP_GITHUB_TOKEN {{"}}"}}"
-#     skip_upload: auto
-#     commit_author:
-#       name: releaserbot
-#       email: you@example.com
+#       token: "{{"{{"}} .Env.HOMEBREW_TAP_TOKEN {{"}}"}}"
+#     directory: Formula
 #     homepage: "https://github.com/{{.GoModuleOwner}}/{{.ProjectName}}"
 #     description: "Description of {{.ProjectName}}"
+#     install: |
+#       bin.install "{{.ProjectName}}"
+#     test: |
+#       system "#\{bin}/{{.ProjectName}}", "version"
 
 changelog:
   sort: asc

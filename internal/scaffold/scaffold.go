@@ -158,6 +158,7 @@ func (s *Scaffolder) Run() error {
 			s.stepGenerateGoreleaser,
 			s.stepGenerateDockerfile,
 			s.stepGenerateDockerignore,
+			s.stepGenerateReleaseWorkflow,
 		}
 		for _, step := range steps {
 			if err := step(); err != nil {

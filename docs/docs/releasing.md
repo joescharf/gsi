@@ -6,7 +6,7 @@ gsi scaffolds a [goreleaser](https://goreleaser.com) configuration that automate
 
 - [goreleaser](https://goreleaser.com/install/) installed
 - A GitHub personal access token at `~/.config/goreleaser/github_token` (for real releases)
-- A `HOMEBREW_TAP_GITHUB_TOKEN` with write access to your tap repository (if using Homebrew distribution)
+- A `HOMEBREW_TAP_TOKEN` with write access to your tap repository (if using Homebrew distribution)
 - [Docker](https://docs.docker.com/get-docker/) running (for Docker image builds)
 
 ## Testing a Release
@@ -55,11 +55,7 @@ This creates:
 - **Linux binaries** (amd64, arm64) as tar.gz archives
 - **macOS universal binary** as a zip archive
 - **Docker images** pushed to `ghcr.io/<owner>/<project>` with `v<version>` and `latest` tags
-- **GitHub draft release** with changelog, binaries, and checksums
-
-### 3. Publish the Draft
-
-Go to your GitHub repository's Releases page, review the draft, and publish it.
+- **GitHub release** with changelog, binaries, and checksums
 
 ## What Gets Built
 
@@ -80,11 +76,11 @@ The scaffolded `.goreleaser.yml` configures:
 The Homebrew section is commented out by default. To enable it:
 
 1. Create a tap repository (e.g., `<owner>/homebrew-tap`)
-2. Uncomment the `homebrew_casks` section in `.goreleaser.yml`
+2. Uncomment the `brews` section in `.goreleaser.yml`
 3. Configure the repository owner, name, and description
 4. Create a GitHub personal access token (classic) with `repo` scope for write access to the tap repository
-5. For local releases, set the environment variable: `export HOMEBREW_TAP_GITHUB_TOKEN=ghp_...`
-6. For CI, add `HOMEBREW_TAP_GITHUB_TOKEN` as a repository secret
+5. For local releases, set the environment variable: `export HOMEBREW_TAP_TOKEN=ghp_...`
+6. For CI, add `HOMEBREW_TAP_TOKEN` as a repository secret
 
 After setup, users can install via:
 
@@ -136,5 +132,5 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
 ```

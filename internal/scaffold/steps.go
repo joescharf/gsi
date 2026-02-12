@@ -184,6 +184,21 @@ func (s *Scaffolder) stepGenerateDockerfile() error {
 	)
 }
 
+// stepGenerateReleaseWorkflow writes .github/workflows/release.yml from template.
+func (s *Scaffolder) stepGenerateReleaseWorkflow() error {
+	dir := filepath.Join(s.Config.ProjectDir, ".github", "workflows")
+	if !s.Config.DryRun {
+		os.MkdirAll(dir, 0o755)
+	}
+	return WriteTemplateFile(
+		filepath.Join(dir, "release.yml"),
+		"github_release_yml.tmpl",
+		s.templateData(),
+		s.Config.DryRun,
+		s.Logger,
+	)
+}
+
 // stepGenerateDockerignore writes .dockerignore from template.
 func (s *Scaffolder) stepGenerateDockerignore() error {
 	return WriteTemplateFile(

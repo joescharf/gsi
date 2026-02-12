@@ -68,29 +68,24 @@ release:
   ids:
     - gsi-archive
     - gsi-linux-archive
-  draft: true
-  replace_existing_draft: true
+  draft: false
 
 snapshot:
   version_template: "{{ incpatch .Version }}-devel"
 
 # brew install joescharf/tap/gsi
-homebrew_casks:
-  - name: gsi
-    ids:
-      - gsi-archive
-    binaries:
-      - gsi
-    repository:
+brews:
+  - repository:
       owner: joescharf
       name: homebrew-tap
-      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
-    skip_upload: auto
-    commit_author:
-      name: releaserbot
-      email: joe@joescharf.com
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    directory: Formula
     homepage: "https://github.com/joescharf/gsi"
     description: "Initialize Go projects with best practices and tooling"
+    install: |
+      bin.install "gsi"
+    test: |
+      system "#{bin}/gsi", "version"
 
 changelog:
   sort: asc
