@@ -1,0 +1,72 @@
+package config
+
+import (
+	"os"
+	"path/filepath"
+	"strings"
+
+	"github.com/spf13/viper"
+)
+
+// appName is used for config directory and env prefix.
+const appName = "{{.ProjectName}}"
+
+// ConfigDir returns the application configuration directory.
+// Uses os.UserConfigDir() for OS-appropriate paths:
+//
+//	Linux/BSD: $XDG_CONFIG_HOME/<app> or ~/.config/<app>
+//	macOS:     ~/Library/Application Support/<app>
+//	Windows:   %AppData%/<app>
+func ConfigDir() string {
+	base, err := os.UserConfigDir()
+	if err != nil {
+		home, _ := os.UserHomeDir()
+		base = filepath.Join(home, ".config")
+	}
+	return filepath.Join(base, appName)
+}
+
+// DefaultConfigFile returns the default config file path.
+func DefaultConfigFile() string {
+	return filepath.Join(ConfigDir(), "config.yaml")
+}
+
+// EnsureDir creates a directory (and parents) with mode 0o700 if it doesn't exist.
+func EnsureDir(dir string) error {
+	return os.MkdirAll(dir, 0o700)
+}
+
+// SaveConfig writes the current Viper configuration to the given path.
+func SaveConfig(path string) error {
+	return viper.WriteConfigAs(path)
+}
+
+// SetDefaults configures all Viper defaults for the application.
+func SetDefaults() {
+	// Server
+	viper.SetDefault("server.port", 8080)
+
+	// Logging
+	viper.SetDefault("log.level", "info")
+}
+
+// InitViper sets up viper config file discovery, env vars, and defaults.
+func InitViper(cfgFile string) {
+	SetDefaults()
+
+	if cfgFile != "" {
+		viper.SetConfigFile(cfgFile)
+	} else {
+		viper.SetConfigName("config")
+		viper.SetConfigType("yaml")
+		viper.AddConfigPath(ConfigDir())
+		viper.AddConfigPath(".")
+	}
+
+	viper.SetEnvPrefix(strings.ReplaceAll(appName, "-", "_"))
+	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+	viper.AutomaticEnv()
+
+	// Silently ignore missing config file
+	_ = viper.ReadInConfig()
+}

@@ -1,0 +1,18 @@
+package cmd
+
+import (
+	"{{.GoModulePath}}/internal/config"
+	"github.com/spf13/cobra"
+)
+
+// cfgFile holds the --config flag value.
+var cfgFile string
+
+func init() {
+	cobra.OnInitialize(initConfig)
+	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default: "+config.DefaultConfigFile()+")")
+}
+
+func initConfig() {
+	config.InitViper(cfgFile)
+}

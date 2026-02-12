@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 
 	"github.com/joescharf/gsi/internal/logger"
 )
@@ -96,19 +97,34 @@ func (s *Scaffolder) Run() error {
 	s.Logger.Plain("  Project Dir:   " + cfg.ProjectDir)
 	s.Logger.Plain("  Module Path:   " + cfg.GoModulePath)
 	s.Logger.Plain("  Author:        " + cfg.Author)
-	home, _ := os.UserHomeDir()
-	s.Logger.Plain("  Config Dir:    " + filepath.Join(home, ".config", cfg.ProjectName))
-	s.Logger.Plain(fmt.Sprintf("  Init UI:       %v", cfg.InitUI))
-	s.Logger.Plain(fmt.Sprintf("  Skip Docs:     %v", cfg.SkipDocs))
-	s.Logger.Plain(fmt.Sprintf("  Only Docs:     %v", cfg.OnlyDocs))
 	if cfg.DryRun {
 		s.Logger.Plain("  \033[1;33mMode:          DRY-RUN\033[0m")
 	}
 	s.Logger.Plain("")
 
+	// Display capability states
+	s.Logger.Info("Capabilities:")
+	// Sort keys for deterministic output
+	caps := make([]string, 0, len(cfg.Capabilities))
+	for k := range cfg.Capabilities {
+		caps = append(caps, k)
+	}
+	sort.Strings(caps)
+	for _, name := range caps {
+		state := "ON"
+		if !cfg.Capabilities[name] {
+			state = "OFF"
+		}
+		s.Logger.Plain(fmt.Sprintf("  %-14s %s", name+":", state))
+	}
+	if cfg.OnlyDocs {
+		s.Logger.Plain("  only-docs:     ON")
+	}
+	s.Logger.Plain("")
+
 	// Validate mutually exclusive flags
-	if cfg.OnlyDocs && cfg.SkipDocs {
-		return fmt.Errorf("--only-docs and --skip-docs are mutually exclusive")
+	if cfg.OnlyDocs && !cfg.IsEnabled(CapDocs) {
+		return fmt.Errorf("--only-docs and --no-docs are mutually exclusive")
 	}
 
 	// Validate environment
@@ -117,7 +133,7 @@ func (s *Scaffolder) Run() error {
 	}
 
 	// Validate bun if --ui
-	if cfg.InitUI && !cfg.OnlyDocs {
+	if cfg.IsEnabled(CapUI) && !cfg.OnlyDocs {
 		if !CheckCommand("bun") {
 			s.Logger.Error("bun is required for UI initialization (--ui flag) but is not installed")
 			s.Logger.Error("Install bun: https://bun.sh")
@@ -125,11 +141,11 @@ func (s *Scaffolder) Run() error {
 		}
 	}
 
-	// Auto-skip docs if uv is missing (non-only-docs mode)
-	if !cfg.SkipDocs && !cfg.OnlyDocs {
+	// Auto-disable docs if uv is missing (non-only-docs mode)
+	if cfg.IsEnabled(CapDocs) && !cfg.OnlyDocs {
 		if !CheckCommand("uv") {
 			s.Logger.Warning("uv is not installed, skipping docs scaffolding (install: https://docs.astral.sh/uv/)")
-			cfg.SkipDocs = true
+			cfg.Disable(CapDocs)
 		}
 	}
 
@@ -147,8 +163,11 @@ func (s *Scaffolder) Run() error {
 			s.stepInstallCobraCli,
 			s.stepGoModInit,
 			s.stepCobraInit,
-			s.stepAddVersionCmd,
+			s.stepGenerateVersionCmd,
 			s.stepGenerateServeCmd,
+			s.stepGenerateConfigCmd,
+			s.stepGenerateConfigPkg,
+			s.stepGenerateConfigInit,
 			s.stepGenerateMockeryConfig,
 			s.stepGenerateEditorConfig,
 			s.stepGenerateUIPlaceholder,

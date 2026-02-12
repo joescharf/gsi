@@ -22,7 +22,7 @@ make lint
 ```
 gsi/
 ├── cmd/                        # Cobra commands
-│   ├── root.go                 # Root command, flags, viper bindings
+│   ├── root.go                 # Root command, capability flags, viper bindings
 │   ├── serve.go                # Serve command for embedded UI
 │   └── version.go              # Version command (ldflags-injected)
 ├── internal/
@@ -30,10 +30,11 @@ gsi/
 │   ├── scaffold/
 │   │   ├── scaffold.go         # Main orchestrator (step sequencing)
 │   │   ├── steps.go            # Individual scaffold step methods
-│   │   ├── steps_test.go       # Step tests (idempotency, dry-run)
-│   │   ├── config.go           # Config struct definition
-│   │   ├── files.go            # WriteTemplateFile / WriteStaticFile helpers
-│   │   └── validate.go         # Environment validation
+│   │   ├── steps_test.go       # Step tests (idempotency, dry-run, guards)
+│   │   ├── config.go           # Config struct, capability constants, IsEnabled/Disable
+│   │   ├── config_test.go      # Config unit tests (DefaultCapabilities, IsEnabled, Disable)
+│   │   ├── environment.go      # Environment validation (capability-aware)
+│   │   └── files.go            # WriteTemplateFile / WriteStaticFile helpers
 │   ├── templates/
 │   │   ├── templates.go        # Template rendering engine
 │   │   ├── templates_test.go   # Template render tests
@@ -49,7 +50,7 @@ gsi/
 
 ## How to Add a New Scaffold Step
 
-Adding a new file to the scaffold output follows a 3-step pattern:
+Adding a new file to the scaffold output follows a pattern:
 
 ### 1. Create the Template
 
@@ -67,10 +68,14 @@ Available template variables (from `templates.Data`):
 
 ### 2. Add the Step Method
 
-In `internal/scaffold/steps.go`, add a method:
+In `internal/scaffold/steps.go`, add a method with a capability guard:
 
 ```go
 func (s *Scaffolder) stepGenerateMyConfig() error {
+    if !s.Config.IsEnabled(CapMyThing) {
+        s.Logger.Info("Skipping my config (--no-mything)")
+        return nil
+    }
     return WriteTemplateFile(
         filepath.Join(s.Config.ProjectDir, ".myconfig.yml"),
         "my_config.tmpl",
@@ -88,7 +93,21 @@ func (s *Scaffolder) stepGenerateMyConfig() error {
 - Directory creation
 - Template rendering
 
-### 3. Register the Step
+### 3. Add the Capability (if new)
+
+If adding a new toggleable capability:
+
+1. Add a constant in `internal/scaffold/config.go`:
+    ```go
+    CapMyThing = "mything"
+    ```
+2. Add to `DefaultCapabilities()` with the desired default (ON or OFF)
+3. Add to the `capabilities` slice in `cmd/root.go`:
+    ```go
+    {"mything", true, "My thing description"},
+    ```
+
+### 4. Register the Step
 
 In `internal/scaffold/scaffold.go`, add the step to the `steps` slice:
 
@@ -99,9 +118,9 @@ steps := []func() error{
 }
 ```
 
-### 4. Add Tests
+### 5. Add Tests
 
-Add two tests in `internal/scaffold/steps_test.go`:
+Add tests in `internal/scaffold/steps_test.go`:
 
 ```go
 func TestStepGenerateMyConfigIdempotent(t *testing.T) {
@@ -133,6 +152,17 @@ func TestStepGenerateMyConfigDryRun(t *testing.T) {
         t.Errorf("expected dry-run message")
     }
 }
+
+func TestStepGenerateMyConfigDisabled(t *testing.T) {
+    s, stdout, _ := testScaffolder(t, false)
+    s.Config.Capabilities[CapMyThing] = false
+    if err := s.stepGenerateMyConfig(); err != nil {
+        t.Fatal(err)
+    }
+    if !strings.Contains(stdout.String(), "Skipping") {
+        t.Errorf("expected skip message")
+    }
+}
 ```
 
 And a template render test in `internal/templates/templates_test.go`:
@@ -140,6 +170,19 @@ And a template render test in `internal/templates/templates_test.go`:
 ```go
 {"my_config.tmpl", []string{"expected-content"}},
 ```
+
+## Capability Architecture
+
+The capability system uses a `map[string]bool` pattern:
+
+- **`Config.Capabilities`** -- maps capability names to enabled/disabled state
+- **`Config.IsEnabled(name)`** -- checks if a capability is ON
+- **`Config.Disable(name)`** -- turns off a capability at runtime (e.g., missing soft dep)
+- **`DefaultCapabilities()`** -- returns the default state for all capabilities
+
+Flags are registered in `cmd/root.go` as `--<name>` (visible) and `--no-<name>` (hidden). The `--no-<name>` flag takes precedence if both are set.
+
+Soft dependency auto-disable happens in `ValidateEnvironment()` -- if a tool like `bun` or `uv` is missing, the corresponding capability is disabled automatically with a warning.
 
 ## Code Style
 

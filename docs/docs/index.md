@@ -6,7 +6,8 @@ Instead of manually setting up cobra, viper, makefiles, docker, goreleaser, docs
 
 ## Key Features
 
-- **CLI framework** -- Cobra + Viper with version command and config management
+- **CLI framework** -- Cobra + Viper with version command and config management (`config init/edit/check`)
+- **Config scaffolding** -- Complete viper-based config system with `os.UserConfigDir()`, env vars, and `SetDefaults()`
 - **Embedded web UI** -- Serve command with SPA routing and a placeholder UI ready for React/shadcn
 - **Documentation** -- mkdocs-material site with live reload via `uv`
 - **Release automation** -- Goreleaser config for binaries, Docker images, and Homebrew

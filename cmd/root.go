@@ -9,6 +9,28 @@ import (
 	"github.com/spf13/viper"
 )
 
+// capabilityDef describes a scaffold capability flag.
+type capabilityDef struct {
+	name         string
+	defaultValue bool
+	description  string
+}
+
+// capabilities lists all toggleable scaffold capabilities.
+var capabilities = []capabilityDef{
+	{"bmad", true, "BMAD method framework installation"},
+	{"config", true, "Viper config management scaffolding"},
+	{"git", true, "Git initialization and initial commit"},
+	{"docs", true, "mkdocs-material documentation scaffolding"},
+	{"ui", false, "React/shadcn/Tailwind UI in ui/ subdirectory"},
+	{"goreleaser", true, "GoReleaser configuration"},
+	{"docker", true, "Dockerfile and .dockerignore"},
+	{"release", true, "GitHub Actions release workflow"},
+	{"mockery", true, "Mockery configuration"},
+	{"editorconfig", true, "EditorConfig file"},
+	{"makefile", true, "Makefile with common targets"},
+}
+
 var rootCmd = &cobra.Command{
 	Use:   "gsi [project-name]",
 	Short: "Initialize a Go project with best practices and tooling",
@@ -16,11 +38,15 @@ var rootCmd = &cobra.Command{
 mkdocs-material documentation, an embedded web UI, mockery, editorconfig,
 and optional React/shadcn/Tailwind frontend.
 
+Each capability can be toggled with --<name> / --no-<name> flags.
+Defaults: most capabilities ON, ui OFF.
+
 Examples:
   gsi my-awesome-app
   gsi --author "Jane Doe jane@example.com" my-app
   gsi --module github.com/myorg/myapp --dry-run my-app
-  gsi --skip-bmad --skip-git my-app
+  gsi --no-bmad --no-git my-app
+  gsi --no-docker --no-release my-app
   gsi --only-docs my-app
   gsi --ui my-app
   gsi .    # Initialize in current directory`,
@@ -30,17 +56,28 @@ Examples:
 			return fmt.Errorf("project name is required (use '.' for current directory)")
 		}
 
+		// Build capabilities map from defaults, then apply flag overrides
+		caps := scaffold.DefaultCapabilities()
+		for _, cap := range capabilities {
+			noFlag := "no-" + cap.name
+			// --no-<name> takes precedence if explicitly set
+			if cmd.Flags().Changed(noFlag) {
+				noVal, _ := cmd.Flags().GetBool(noFlag)
+				caps[cap.name] = !noVal
+			} else if cmd.Flags().Changed(cap.name) {
+				val, _ := cmd.Flags().GetBool(cap.name)
+				caps[cap.name] = val
+			}
+		}
+
 		cfg := scaffold.Config{
 			ProjectName:  args[0],
 			Author:       viper.GetString("author"),
 			GoModulePath: viper.GetString("module"),
 			DryRun:       viper.GetBool("dry-run"),
 			Verbose:      viper.GetBool("verbose"),
-			SkipBmad:     viper.GetBool("skip-bmad"),
-			SkipGit:      viper.GetBool("skip-git"),
-			SkipDocs:     viper.GetBool("skip-docs"),
 			OnlyDocs:     viper.GetBool("only-docs"),
-			InitUI:       viper.GetBool("ui"),
+			Capabilities: caps,
 		}
 
 		return scaffold.NewScaffolder(cfg).Run()
@@ -59,22 +96,21 @@ func init() {
 	rootCmd.Flags().StringP("module", "m", "", "Go module path (default: github.com/joescharf/<project>)")
 	rootCmd.Flags().BoolP("dry-run", "d", false, "Show what would be done without executing")
 	rootCmd.Flags().BoolP("verbose", "v", false, "Enable verbose output")
-	rootCmd.Flags().Bool("skip-bmad", false, "Skip BMAD method installation")
-	rootCmd.Flags().Bool("skip-git", false, "Skip git initialization and commit")
-	rootCmd.Flags().Bool("skip-docs", false, "Skip mkdocs-material documentation scaffolding")
 	rootCmd.Flags().Bool("only-docs", false, "Only add docs scaffolding (skip everything else)")
-	rootCmd.Flags().Bool("ui", false, "Initialize a React/shadcn/Tailwind UI in ui/ subdirectory")
 
-	// Bind all flags to viper
+	// Register capability flags: --<name> and hidden --no-<name>
+	for _, cap := range capabilities {
+		rootCmd.Flags().Bool(cap.name, cap.defaultValue, cap.description)
+		rootCmd.Flags().Bool("no-"+cap.name, !cap.defaultValue, "Disable "+cap.description)
+		_ = rootCmd.Flags().MarkHidden("no-" + cap.name)
+	}
+
+	// Bind non-capability flags to viper
 	viper.BindPFlag("author", rootCmd.Flags().Lookup("author"))
 	viper.BindPFlag("module", rootCmd.Flags().Lookup("module"))
 	viper.BindPFlag("dry-run", rootCmd.Flags().Lookup("dry-run"))
 	viper.BindPFlag("verbose", rootCmd.Flags().Lookup("verbose"))
-	viper.BindPFlag("skip-bmad", rootCmd.Flags().Lookup("skip-bmad"))
-	viper.BindPFlag("skip-git", rootCmd.Flags().Lookup("skip-git"))
-	viper.BindPFlag("skip-docs", rootCmd.Flags().Lookup("skip-docs"))
 	viper.BindPFlag("only-docs", rootCmd.Flags().Lookup("only-docs"))
-	viper.BindPFlag("ui", rootCmd.Flags().Lookup("ui"))
 
 	// Set defaults via viper
 	viper.SetDefault("author", "Joe Scharf joe@joescharf.com")

@@ -8,7 +8,33 @@ gsi [flags] [project-name]
 
 The project name argument is required. Use `.` to initialize in the current directory.
 
-## Flags
+## Capability Flags
+
+Every toggleable capability has a `--<name>` flag (to enable) and a hidden `--no-<name>` flag (to disable). The `--no-<name>` flag takes precedence if both are set.
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--bmad` / `--no-bmad` | ON | BMAD method framework installation |
+| `--config` / `--no-config` | ON | Viper config management scaffolding |
+| `--git` / `--no-git` | ON | Git initialization and initial commit |
+| `--docs` / `--no-docs` | ON | mkdocs-material documentation scaffolding |
+| `--ui` / `--no-ui` | OFF | React/shadcn/Tailwind UI in `ui/` subdirectory |
+| `--goreleaser` / `--no-goreleaser` | ON | GoReleaser configuration |
+| `--docker` / `--no-docker` | ON | Dockerfile and .dockerignore |
+| `--release` / `--no-release` | ON | GitHub Actions release workflow |
+| `--mockery` / `--no-mockery` | ON | Mockery configuration |
+| `--editorconfig` / `--no-editorconfig` | ON | EditorConfig file |
+| `--makefile` / `--no-makefile` | ON | Makefile with common targets |
+
+Capabilities with missing soft dependencies are auto-disabled at runtime:
+
+- `bmad` is auto-disabled if `bun` is not found
+- `docs` is auto-disabled if `uv` is not found
+- `git` is auto-disabled if `git` is not found
+
+The `ui` capability has a **hard** dependency on `bun` -- gsi will error if `--ui` is set and `bun` is missing.
+
+## Other Flags
 
 | Flag | Short | Default | Description |
 |------|-------|---------|-------------|
@@ -16,14 +42,10 @@ The project name argument is required. Use `.` to initialize in the current dire
 | `--module` | `-m` | `github.com/joescharf/<project>` | Go module path |
 | `--dry-run` | `-d` | `false` | Show what would be done without executing |
 | `--verbose` | `-v` | `false` | Enable verbose output |
-| `--ui` | | `false` | Initialize a React/shadcn/Tailwind UI in `ui/` |
-| `--skip-bmad` | | `false` | Skip BMAD method installation |
-| `--skip-git` | | `false` | Skip git initialization and commit |
-| `--skip-docs` | | `false` | Skip mkdocs-material documentation scaffolding |
 | `--only-docs` | | `false` | Only add docs scaffolding (skip everything else) |
 
 !!! note
-    `--only-docs` and `--skip-docs` are mutually exclusive.
+    `--only-docs` and `--no-docs` are mutually exclusive.
 
 ## Subcommands
 
@@ -61,5 +83,14 @@ gsi --dry-run --verbose my-app
 gsi --only-docs .
 
 # Minimal scaffold (no BMAD, no docs, no git)
-gsi --skip-bmad --skip-docs --skip-git my-app
+gsi --no-bmad --no-docs --no-git my-app
+
+# Skip Docker and release workflow
+gsi --no-docker --no-release my-app
+
+# Skip config management scaffolding
+gsi --no-config my-app
+
+# Kitchen sink: disable most optional capabilities
+gsi --no-bmad --no-docs --no-docker --no-release --no-mockery --no-editorconfig my-app
 ```

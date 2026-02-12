@@ -1,0 +1,94 @@
+package cmd
+
+import (
+	"fmt"
+	"os"
+	"os/exec"
+
+	"{{.GoModulePath}}/internal/config"
+	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
+)
+
+var configCmd = &cobra.Command{
+	Use:   "config",
+	Short: "Manage application configuration",
+}
+
+var configInitCmd = &cobra.Command{
+	Use:   "init",
+	Short: "Create the config directory and default config file",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		cfgDir := config.ConfigDir()
+
+		if err := config.EnsureDir(cfgDir); err != nil {
+			return fmt.Errorf("create config directory: %w", err)
+		}
+		fmt.Fprintln(os.Stderr, "Config directory:", cfgDir)
+
+		cfgPath := config.DefaultConfigFile()
+
+		// Only write if file does not already exist
+		if _, err := os.Stat(cfgPath); err == nil {
+			fmt.Fprintln(os.Stderr, "Config file already exists:", cfgPath)
+			return nil
+		}
+
+		if err := config.SaveConfig(cfgPath); err != nil {
+			return fmt.Errorf("write config file: %w", err)
+		}
+		fmt.Fprintln(os.Stderr, "Config file created:", cfgPath)
+		return nil
+	},
+}
+
+var configEditCmd = &cobra.Command{
+	Use:   "edit",
+	Short: "Open the config file in your editor",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		cfgPath := config.DefaultConfigFile()
+
+		if _, err := os.Stat(cfgPath); os.IsNotExist(err) {
+			return fmt.Errorf("config file not found: %s (run 'config init' first)", cfgPath)
+		}
+
+		editor := os.Getenv("EDITOR")
+		if editor == "" {
+			fmt.Fprintln(os.Stderr, "Config file:", cfgPath)
+			fmt.Fprintln(os.Stderr, "Set $EDITOR to open it automatically")
+			return nil
+		}
+
+		c := exec.Command(editor, cfgPath)
+		c.Stdin = os.Stdin
+		c.Stdout = os.Stdout
+		c.Stderr = os.Stderr
+		return c.Run()
+	},
+}
+
+var configCheckCmd = &cobra.Command{
+	Use:   "check",
+	Short: "Display current configuration values and their sources",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		cfgFile := viper.ConfigFileUsed()
+		if cfgFile != "" {
+			fmt.Fprintf(os.Stderr, "Config file: %s\n", cfgFile)
+		} else {
+			fmt.Fprintln(os.Stderr, "Config file: (none found, using defaults)")
+		}
+		fmt.Fprintln(os.Stderr, "")
+
+		for _, key := range viper.AllKeys() {
+			fmt.Fprintf(os.Stdout, "%s: %v\n", key, viper.Get(key))
+		}
+		return nil
+	},
+}
+
+func init() {
+	configCmd.AddCommand(configInitCmd)
+	configCmd.AddCommand(configEditCmd)
+	configCmd.AddCommand(configCheckCmd)
+	rootCmd.AddCommand(configCmd)
+}

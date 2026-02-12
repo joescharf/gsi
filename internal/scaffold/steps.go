@@ -26,8 +26,8 @@ func (s *Scaffolder) templateData() templates.Data {
 
 // stepInstallBmad installs the BMAD method framework via bun.
 func (s *Scaffolder) stepInstallBmad() error {
-	if s.Config.SkipBmad {
-		s.Logger.Info("Skipping BMAD installation (--skip-bmad flag)")
+	if !s.Config.IsEnabled(CapBmad) {
+		s.Logger.Info("Skipping BMAD installation (--no-bmad)")
 		return nil
 	}
 
@@ -81,14 +81,15 @@ func (s *Scaffolder) stepCobraInit() error {
 	)
 }
 
-// stepAddVersionCmd adds the version subcommand via cobra-cli.
-func (s *Scaffolder) stepAddVersionCmd() error {
-	versionFile := filepath.Join(s.Config.ProjectDir, "cmd", "version.go")
-	if _, err := os.Stat(versionFile); err == nil && !s.Config.DryRun {
-		s.Logger.Info("cmd/version.go already exists, skipping")
-		return nil
-	}
-	return s.Executor.Execute("cobra-cli add version", "Adding version command")
+// stepGenerateVersionCmd writes cmd/version.go from template with ldflags build vars.
+func (s *Scaffolder) stepGenerateVersionCmd() error {
+	return WriteTemplateFile(
+		filepath.Join(s.Config.ProjectDir, "cmd", "version.go"),
+		"cmd_version.go.tmpl",
+		s.templateData(),
+		s.Config.DryRun,
+		s.Logger,
+	)
 }
 
 // stepGenerateServeCmd writes cmd/serve.go from template.
@@ -102,8 +103,57 @@ func (s *Scaffolder) stepGenerateServeCmd() error {
 	)
 }
 
+// stepGenerateConfigCmd writes cmd/config.go from template.
+func (s *Scaffolder) stepGenerateConfigCmd() error {
+	if !s.Config.IsEnabled(CapConfig) {
+		s.Logger.Info("Skipping config command scaffolding (--no-config)")
+		return nil
+	}
+	return WriteTemplateFile(
+		filepath.Join(s.Config.ProjectDir, "cmd", "config.go"),
+		"cmd_config.go.tmpl",
+		s.templateData(),
+		s.Config.DryRun,
+		s.Logger,
+	)
+}
+
+// stepGenerateConfigPkg writes internal/config/config.go from template.
+func (s *Scaffolder) stepGenerateConfigPkg() error {
+	if !s.Config.IsEnabled(CapConfig) {
+		s.Logger.Info("Skipping config package scaffolding (--no-config)")
+		return nil
+	}
+	return WriteTemplateFile(
+		filepath.Join(s.Config.ProjectDir, "internal", "config", "config.go"),
+		"config_go.tmpl",
+		s.templateData(),
+		s.Config.DryRun,
+		s.Logger,
+	)
+}
+
+// stepGenerateConfigInit writes cmd/config_init.go from template.
+func (s *Scaffolder) stepGenerateConfigInit() error {
+	if !s.Config.IsEnabled(CapConfig) {
+		s.Logger.Info("Skipping config init scaffolding (--no-config)")
+		return nil
+	}
+	return WriteTemplateFile(
+		filepath.Join(s.Config.ProjectDir, "cmd", "config_init.go"),
+		"cmd_config_init.go.tmpl",
+		s.templateData(),
+		s.Config.DryRun,
+		s.Logger,
+	)
+}
+
 // stepGenerateMockeryConfig writes .mockery.yml from template.
 func (s *Scaffolder) stepGenerateMockeryConfig() error {
+	if !s.Config.IsEnabled(CapMockery) {
+		s.Logger.Info("Skipping mockery config (--no-mockery)")
+		return nil
+	}
 	return WriteTemplateFile(
 		filepath.Join(s.Config.ProjectDir, ".mockery.yml"),
 		"mockery_yml.tmpl",
@@ -115,6 +165,10 @@ func (s *Scaffolder) stepGenerateMockeryConfig() error {
 
 // stepGenerateEditorConfig writes .editorconfig from template.
 func (s *Scaffolder) stepGenerateEditorConfig() error {
+	if !s.Config.IsEnabled(CapEditorconfig) {
+		s.Logger.Info("Skipping editorconfig (--no-editorconfig)")
+		return nil
+	}
 	return WriteTemplateFile(
 		filepath.Join(s.Config.ProjectDir, ".editorconfig"),
 		"editorconfig.tmpl",
@@ -153,6 +207,10 @@ func (s *Scaffolder) stepGoModTidy() error {
 
 // stepGenerateMakefile writes the Makefile from template.
 func (s *Scaffolder) stepGenerateMakefile() error {
+	if !s.Config.IsEnabled(CapMakefile) {
+		s.Logger.Info("Skipping Makefile (--no-makefile)")
+		return nil
+	}
 	return WriteTemplateFile(
 		filepath.Join(s.Config.ProjectDir, "Makefile"),
 		"makefile.tmpl",
@@ -164,6 +222,10 @@ func (s *Scaffolder) stepGenerateMakefile() error {
 
 // stepGenerateGoreleaser writes .goreleaser.yml from template.
 func (s *Scaffolder) stepGenerateGoreleaser() error {
+	if !s.Config.IsEnabled(CapGoreleaser) {
+		s.Logger.Info("Skipping goreleaser config (--no-goreleaser)")
+		return nil
+	}
 	return WriteTemplateFile(
 		filepath.Join(s.Config.ProjectDir, ".goreleaser.yml"),
 		"goreleaser_yml.tmpl",
@@ -175,6 +237,10 @@ func (s *Scaffolder) stepGenerateGoreleaser() error {
 
 // stepGenerateDockerfile writes Dockerfile from template.
 func (s *Scaffolder) stepGenerateDockerfile() error {
+	if !s.Config.IsEnabled(CapDocker) {
+		s.Logger.Info("Skipping Dockerfile (--no-docker)")
+		return nil
+	}
 	return WriteTemplateFile(
 		filepath.Join(s.Config.ProjectDir, "Dockerfile"),
 		"dockerfile.tmpl",
@@ -186,6 +252,10 @@ func (s *Scaffolder) stepGenerateDockerfile() error {
 
 // stepGenerateReleaseWorkflow writes .github/workflows/release.yml from template.
 func (s *Scaffolder) stepGenerateReleaseWorkflow() error {
+	if !s.Config.IsEnabled(CapRelease) {
+		s.Logger.Info("Skipping release workflow (--no-release)")
+		return nil
+	}
 	dir := filepath.Join(s.Config.ProjectDir, ".github", "workflows")
 	if !s.Config.DryRun {
 		os.MkdirAll(dir, 0o755)
@@ -201,6 +271,10 @@ func (s *Scaffolder) stepGenerateReleaseWorkflow() error {
 
 // stepGenerateDockerignore writes .dockerignore from template.
 func (s *Scaffolder) stepGenerateDockerignore() error {
+	if !s.Config.IsEnabled(CapDocker) {
+		s.Logger.Info("Skipping .dockerignore (--no-docker)")
+		return nil
+	}
 	return WriteTemplateFile(
 		filepath.Join(s.Config.ProjectDir, ".dockerignore"),
 		"dockerignore.tmpl",
@@ -212,15 +286,15 @@ func (s *Scaffolder) stepGenerateDockerignore() error {
 
 // stepInitDocs scaffolds mkdocs-material documentation.
 func (s *Scaffolder) stepInitDocs() error {
-	if s.Config.SkipDocs {
-		s.Logger.Info("Skipping docs scaffolding (--skip-docs flag)")
+	if !s.Config.IsEnabled(CapDocs) {
+		s.Logger.Info("Skipping docs scaffolding (--no-docs)")
 		return nil
 	}
 
 	// Auto-skip if uv is missing
 	if !CheckCommand("uv") {
 		s.Logger.Warning("uv is not installed, skipping docs scaffolding (install: https://docs.astral.sh/uv/)")
-		s.Config.SkipDocs = true
+		s.Config.Disable(CapDocs)
 		return nil
 	}
 
@@ -326,7 +400,7 @@ func (s *Scaffolder) addDocsDeps(pyproject string) error {
 
 // stepInitUI initializes a React/shadcn UI in ui/.
 func (s *Scaffolder) stepInitUI() error {
-	if !s.Config.InitUI {
+	if !s.Config.IsEnabled(CapUI) {
 		return nil
 	}
 
@@ -341,8 +415,8 @@ func (s *Scaffolder) stepInitUI() error {
 
 // stepInitGit initializes git, creates .gitignore, and makes an initial commit.
 func (s *Scaffolder) stepInitGit() error {
-	if s.Config.SkipGit {
-		s.Logger.Info("Skipping git initialization (--skip-git flag)")
+	if !s.Config.IsEnabled(CapGit) {
+		s.Logger.Info("Skipping git initialization (--no-git)")
 		return nil
 	}
 
@@ -410,11 +484,11 @@ func (s *Scaffolder) stepPrintSummary() {
 		step++
 		s.Logger.Plain(fmt.Sprintf("  %d. Run 'make serve' to start the embedded web UI server", step))
 
-		if !s.Config.SkipDocs {
+		if s.Config.IsEnabled(CapDocs) {
 			step++
 			s.Logger.Plain(fmt.Sprintf("  %d. Run 'make docs-serve' to start the docs dev server", step))
 		}
-		if s.Config.InitUI {
+		if s.Config.IsEnabled(CapUI) {
 			step++
 			s.Logger.Plain(fmt.Sprintf("  %d. Run 'make ui-dev' to start the React dev server", step))
 		}

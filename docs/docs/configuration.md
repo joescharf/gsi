@@ -1,10 +1,10 @@
 # Configuration
 
-## Config Precedence
+## gsi's Own Config
 
-gsi uses [Viper](https://github.com/spf13/viper) for configuration management. Values are resolved in this order (highest priority first):
+gsi uses [Viper](https://github.com/spf13/viper) for its own configuration management. Values are resolved in this order (highest priority first):
 
-1. **CLI flags** -- `--module`, `--author`, etc.
+1. **CLI flags** -- `--module`, `--author`, `--no-docker`, etc.
 2. **Environment variables** -- (if configured)
 3. **Config file** -- (if configured)
 4. **Defaults** -- built-in default values
@@ -17,11 +17,80 @@ gsi uses [Viper](https://github.com/spf13/viper) for configuration management. V
 | `module` | `github.com/joescharf/<project-name>` |
 | `dry-run` | `false` |
 | `verbose` | `false` |
-| `skip-bmad` | `false` |
-| `skip-git` | `false` |
-| `skip-docs` | `false` |
 | `only-docs` | `false` |
-| `ui` | `false` |
+
+### Capability Defaults
+
+| Capability | Default |
+|------------|---------|
+| `bmad` | ON |
+| `config` | ON |
+| `git` | ON |
+| `docs` | ON |
+| `ui` | OFF |
+| `goreleaser` | ON |
+| `docker` | ON |
+| `release` | ON |
+| `mockery` | ON |
+| `editorconfig` | ON |
+| `makefile` | ON |
+
+Each capability can be toggled with `--<name>` (enable) or `--no-<name>` (disable). See the [CLI Reference](cli-reference.md) for details.
+
+## Scaffolded Config Management
+
+When the `config` capability is enabled (default), gsi scaffolds a complete viper-based configuration system into the generated project.
+
+### What Gets Generated
+
+- **`internal/config/config.go`** -- Core config helpers
+- **`cmd/config.go`** -- `config init`, `config edit`, `config check` subcommands
+- **`cmd/config_init.go`** -- `initConfig()` function wired via `cobra.OnInitialize()`
+
+### Config File Location
+
+The scaffolded project uses `os.UserConfigDir()` for OS-appropriate config paths:
+
+| OS | Config Directory |
+|----|-----------------|
+| Linux/BSD | `$XDG_CONFIG_HOME/<project>/` or `~/.config/<project>/` |
+| macOS | `~/Library/Application Support/<project>/` |
+| Windows | `%AppData%/<project>/` |
+
+### Config Precedence (Scaffolded Project)
+
+The scaffolded project follows standard viper precedence:
+
+1. **CLI flags** -- highest priority
+2. **Environment variables** -- prefixed with `<PROJECT>_` (hyphens replaced with underscores), dot-separated keys use `_` (e.g., `MYAPP_SERVER_PORT`)
+3. **Config file** -- `config.yaml` in config dir or current directory
+4. **Defaults** -- from `config.SetDefaults()`
+
+### Config Subcommands
+
+```bash
+# Create config directory and write default config.yaml
+my-app config init
+
+# Open config file in $EDITOR
+my-app config edit
+
+# Display current config values and their sources
+my-app config check
+```
+
+### Customizing Defaults
+
+Edit `internal/config/config.go` to add your application's defaults:
+
+```go
+func SetDefaults() {
+    viper.SetDefault("server.port", 8080)
+    viper.SetDefault("log.level", "info")
+    // Add your defaults here
+    viper.SetDefault("db.path", "myapp.db")
+}
+```
 
 ## Generated Makefile Targets
 

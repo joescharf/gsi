@@ -47,12 +47,34 @@ func ValidateEnvironment(cfg *Config, log *logger.Logger) error {
 		return fmt.Errorf("missing required commands: %v", missingRequired)
 	}
 
-	// Optional
-	for _, cmd := range []string{"git", "bun", "uv"} {
-		if !CheckCommand(cmd) {
-			log.Warning(cmd + " is not installed (optional)")
+	// Optional — only check/warn if the relevant capability is enabled
+	if cfg.IsEnabled(CapGit) {
+		if !CheckCommand("git") {
+			log.Warning("git is not installed — auto-disabling git capability")
+			cfg.Disable(CapGit)
 		} else {
-			log.VerboseMsg("Found " + cmd)
+			log.VerboseMsg("Found git")
+		}
+	}
+
+	if cfg.IsEnabled(CapBmad) || cfg.IsEnabled(CapUI) {
+		if !CheckCommand("bun") {
+			log.Warning("bun is not installed (optional)")
+			if cfg.IsEnabled(CapBmad) {
+				cfg.Disable(CapBmad)
+			}
+			// UI has a hard requirement validated separately in Run()
+		} else {
+			log.VerboseMsg("Found bun")
+		}
+	}
+
+	if cfg.IsEnabled(CapDocs) {
+		if !CheckCommand("uv") {
+			log.Warning("uv is not installed — auto-disabling docs capability")
+			cfg.Disable(CapDocs)
+		} else {
+			log.VerboseMsg("Found uv")
 		}
 	}
 

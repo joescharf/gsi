@@ -5,11 +5,17 @@ A Go CLI tool that scaffolds new Go projects with best practices and tooling.
 ## What it creates
 
 - Go module with [Cobra](https://github.com/spf13/cobra) CLI + [Viper](https://github.com/spf13/viper) config
-- `version` command
+- `version` command with ldflags build vars
+- `config` command with `init`, `edit`, `check` subcommands + `internal/config/` package
+- Viper config file discovery, env var support, and `SetDefaults()` wiring
 - [Mockery](https://github.com/vektra/mockery) configuration
 - `.editorconfig`
 - [BMAD method](https://github.com/bmad-method/bmad-method) framework (requires `bun`)
 - [mkdocs-material](https://squidfunk.github.io/mkdocs-material/) documentation site in `docs/` (requires `uv`)
+- [Goreleaser](https://goreleaser.com) config for binaries, Docker images, and Homebrew
+- Dockerfile and `.dockerignore`
+- GitHub Actions release workflow
+- Makefile with build, test, lint, release, docs, and UI targets
 - Git repository with `.gitignore` and initial commit
 - Optional: React/shadcn/Tailwind UI in `ui/` (requires `bun`)
 
@@ -30,7 +36,25 @@ go install github.com/joescharf/gsi@latest
 gsi [OPTIONS] [PROJECT_NAME]
 ```
 
-### Options
+### Capability Flags
+
+Every toggleable capability has a `--<name>` flag (to enable) and a hidden `--no-<name>` flag (to disable). Most capabilities default to ON; `ui` defaults to OFF.
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--bmad` / `--no-bmad` | ON | BMAD method framework installation |
+| `--config` / `--no-config` | ON | Viper config management scaffolding |
+| `--git` / `--no-git` | ON | Git initialization and initial commit |
+| `--docs` / `--no-docs` | ON | mkdocs-material documentation scaffolding |
+| `--ui` / `--no-ui` | OFF | React/shadcn/Tailwind UI in `ui/` |
+| `--goreleaser` / `--no-goreleaser` | ON | GoReleaser configuration |
+| `--docker` / `--no-docker` | ON | Dockerfile and .dockerignore |
+| `--release` / `--no-release` | ON | GitHub Actions release workflow |
+| `--mockery` / `--no-mockery` | ON | Mockery configuration |
+| `--editorconfig` / `--no-editorconfig` | ON | EditorConfig file |
+| `--makefile` / `--no-makefile` | ON | Makefile with common targets |
+
+### Other Flags
 
 | Flag | Description |
 |------|-------------|
@@ -38,11 +62,7 @@ gsi [OPTIONS] [PROJECT_NAME]
 | `-m, --module PATH` | Go module path |
 | `-d, --dry-run` | Show what would be done without executing |
 | `-v, --verbose` | Enable verbose output |
-| `--skip-bmad` | Skip BMAD method installation |
-| `--skip-git` | Skip git initialization and commit |
-| `--skip-docs` | Skip mkdocs-material documentation scaffolding |
 | `--only-docs` | Only add docs scaffolding (skip everything else) |
-| `--ui` | Initialize a React/shadcn/Tailwind UI in `ui/` |
 
 ### Examples
 
@@ -54,10 +74,16 @@ gsi my-app
 gsi --module github.com/myorg/myapp --dry-run my-app
 
 # Skip docs and BMAD
-gsi --skip-docs --skip-bmad my-app
+gsi --no-docs --no-bmad my-app
+
+# Minimal: no docker, no release, no goreleaser
+gsi --no-docker --no-release --no-goreleaser my-app
 
 # With UI
 gsi --ui my-app
+
+# Without config scaffolding
+gsi --no-config my-app
 
 # Initialize in current directory
 gsi .
@@ -86,7 +112,7 @@ To serve the docs locally:
 cd docs/ && uv run mkdocs serve
 ```
 
-If `uv` is not installed, docs scaffolding is skipped automatically with a warning. Use `--skip-docs` to opt out explicitly.
+If `uv` is not installed, docs scaffolding is skipped automatically with a warning. Use `--no-docs` to opt out explicitly.
 
 ## Idempotency
 

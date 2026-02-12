@@ -45,14 +45,30 @@ Expected output:
   Module Path:   github.com/joescharf/my-app
   Author:        Joe Scharf joe@joescharf.com
 
+Capabilities:
+  bmad:          ON
+  config:        ON
+  docker:        ON
+  docs:          ON
+  editorconfig:  ON
+  git:           ON
+  goreleaser:    ON
+  makefile:      ON
+  mockery:       ON
+  release:       ON
+  ui:            OFF
+
 Starting project initialization...
 
   Installing BMAD method framework
   cobra-cli is already installed
   Initializing Go module
   Creating Cobra CLI application structure
-  Adding version command
+  Creating cmd/version.go
   Creating cmd/serve.go
+  Creating cmd/config.go
+  Creating internal/config/config.go
+  Creating cmd/config_init.go
   Creating .mockery.yml
   Creating .editorconfig
   Creating internal/ui/dist/index.html
@@ -62,6 +78,7 @@ Starting project initialization...
   Creating .goreleaser.yml
   Creating Dockerfile
   Creating .dockerignore
+  Creating .github/workflows/release.yml
   Initializing docs...
   Creating .gitignore
   Creating initial commit
@@ -87,6 +104,14 @@ make test         # Run tests
 make help         # See all available targets
 ```
 
+### 4. Set Up Config
+
+```bash
+./bin/my-app config init    # Create config directory and default config.yaml
+./bin/my-app config check   # View current configuration
+./bin/my-app config edit    # Open config in $EDITOR
+```
+
 ## Common Flag Combinations
 
 ```bash
@@ -100,7 +125,13 @@ gsi --dry-run my-app
 gsi --ui my-app
 
 # Skip optional components
-gsi --skip-bmad --skip-docs my-app
+gsi --no-bmad --no-docs my-app
+
+# Skip Docker and release workflow
+gsi --no-docker --no-release my-app
+
+# No config management scaffolding
+gsi --no-config my-app
 
 # Add docs to an existing project
 gsi --only-docs my-app
@@ -113,4 +144,5 @@ gsi .
 
 - Review [CLI Reference](cli-reference.md) for all available flags
 - See [What Gets Scaffolded](scaffolded-output.md) for a breakdown of generated files
+- Read [Configuration](configuration.md) for details on the scaffolded config system
 - Read [Releasing](releasing.md) to publish your first release
