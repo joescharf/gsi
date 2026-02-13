@@ -1,91 +1,80 @@
-# goreleaser release --clean --verbose
-# goreleaser release --snapshot --clean --skip homebrew,docker
-
-project_name: gsi
 version: 2
+project_name: gsi
+
+env_files:
+  github_token: ~/.config/goreleaser/github_token
 
 before:
   hooks:
     - go mod download
 
 builds:
-  - id: gsi
+  - id: gsi-linux
     binary: gsi
-    dir: .
-    main: main.go
-    env:
-      - CGO_ENABLED=0
-    goos:
-      - linux
-    goarch:
-      - amd64
-      - arm64
+    env: [CGO_ENABLED=0]
+    goos: [linux]
+    goarch: [amd64, arm64]
     ldflags:
-      - -X github.com/joescharf/gsi/cmd.version={{.Version}}
-      - -X github.com/joescharf/gsi/cmd.commit={{.Commit}}
-      - -X github.com/joescharf/gsi/cmd.date={{.Date}}
+      - -s -w
+      - -X main.version={{.Version}}
+      - -X main.commit={{.Commit}}
+      - -X main.date={{.Date}}
+    mod_timestamp: "{{ .CommitTimestamp }}"
 
   - id: gsi-macos
     binary: gsi
-    dir: .
-    main: main.go
-    env:
-      - CGO_ENABLED=0
-    goos:
-      - darwin
-    goarch:
-      - amd64
+    env: [CGO_ENABLED=0]
+    goos: [darwin]
+    goarch: [amd64, arm64]
     ldflags:
-      - -X github.com/joescharf/gsi/cmd.version={{.Version}}
-      - -X github.com/joescharf/gsi/cmd.commit={{.Commit}}
-      - -X github.com/joescharf/gsi/cmd.date={{.Date}}
+      - -s -w
+      - -X main.version={{.Version}}
+      - -X main.commit={{.Commit}}
+      - -X main.date={{.Date}}
+    mod_timestamp: "{{ .CommitTimestamp }}"
 
-# MacOS Universal Binaries
+  - id: gsi-windows
+    binary: gsi
+    env: [CGO_ENABLED=0]
+    goos: [windows]
+    goarch: [amd64, arm64]
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+      - -X main.commit={{.Commit}}
+      - -X main.date={{.Date}}
+    mod_timestamp: "{{ .CommitTimestamp }}"
+
 universal_binaries:
   - id: gsi-macos
     replace: true
+    hooks:
+      post: uv run /Users/joescharf/.local/bin/pycodesign.py gsi_pycodesign.ini -O {{ .Version }}
 
 archives:
   - id: gsi-linux-archive
-    ids:
-      - gsi
+    ids: [gsi-linux]
+    formats: ["tar.gz"]
+    name_template: "{{ .ProjectName }}_{{ title .Os }}_{{ if eq .Arch \"amd64\" }}x86_64{{ else }}{{ .Arch }}{{ end }}"
+    files: [README.md]
 
-  - id: gsi-archive
-    ids:
-      - gsi-macos
-    formats:
-      - zip
-    files:
-      - none*
+  - id: gsi-macos-archive
+    ids: [gsi-macos]
+    formats: ["zip"]
+    name_template: "{{ .ProjectName }}_{{ title .Os }}_{{ if eq .Arch \"amd64\" }}x86_64{{ else }}{{ .Arch }}{{ end }}"
+    files: [README.md]
+
+  - id: gsi-windows-archive
+    ids: [gsi-windows]
+    formats: ["zip"]
+    name_template: "{{ .ProjectName }}_{{ title .Os }}_{{ if eq .Arch \"amd64\" }}x86_64{{ else }}{{ .Arch }}{{ end }}"
+    files: [README.md]
 
 checksum:
   name_template: "checksums.txt"
 
-release:
-  github:
-    owner: joescharf
-    name: gsi
-  ids:
-    - gsi-archive
-    - gsi-linux-archive
-  draft: false
-
 snapshot:
-  version_template: "{{ incpatch .Version }}-devel"
-
-# brew install joescharf/tap/gsi
-brews:
-  - repository:
-      owner: joescharf
-      name: homebrew-tap
-      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
-    directory: Formula
-    homepage: "https://github.com/joescharf/gsi"
-    description: "Initialize Go projects with best practices and tooling"
-    install: |
-      bin.install "gsi"
-    test: |
-      system "#{bin}/gsi", "version"
+  version_template: "{{ incpatch .Version }}-next"
 
 changelog:
   sort: asc
@@ -102,18 +91,37 @@ changelog:
     exclude:
       - "^docs:"
       - "^test:"
+      - "^ci:"
+      - "^chore:"
 
-# Multi-platform Docker images
+release:
+  github:
+    owner: joescharf
+    name: gsi
+  ids: [gsi-macos-archive, gsi-linux-archive, gsi-windows-archive]
+  extra_files:
+    - glob: ./dist/gsi_macos_universal.pkg
+  draft: true
+  replace_existing_draft: true
+  prerelease: auto
+
+# brew install joescharf/tap/gsi
+brews:
+  - repository:
+      owner: joescharf
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    directory: Formula
+    homepage: "https://github.com/joescharf/gsi"
+    description: "Initialize Go projects with best practices and tooling"
+    install: |
+      bin.install "gsi"
+    test: |
+      system "#{bin}/gsi", "version"
+
 dockers_v2:
   - images:
       - "ghcr.io/joescharf/gsi"
     tags:
       - "v{{ .Version }}"
-      - "latest"
-    labels:
-      "org.opencontainers.image.title": "{{ .ProjectName }}"
-      "org.opencontainers.image.description": "{{ .ProjectName }}"
-      "org.opencontainers.image.url": "https://github.com/joescharf/{{ .ProjectName }}"
-      "org.opencontainers.image.source": "https://github.com/joescharf/{{ .ProjectName }}"
-      "org.opencontainers.image.version": "{{ .Version }}"
-      "org.opencontainers.image.revision": "{{ .FullCommit }}"
+      - latest

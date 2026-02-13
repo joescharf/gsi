@@ -18,9 +18,10 @@ func (s *Scaffolder) templateData() templates.Data {
 	}
 
 	return templates.Data{
-		ProjectName:   s.Config.ProjectName,
-		GoModulePath:  s.Config.GoModulePath,
-		GoModuleOwner: owner,
+		ProjectName:      s.Config.ProjectName,
+		ProjectNameUpper: strings.ToUpper(s.Config.ProjectName),
+		GoModulePath:     s.Config.GoModulePath,
+		GoModuleOwner:    owner,
 	}
 }
 
@@ -269,6 +270,81 @@ func (s *Scaffolder) stepGenerateReleaseWorkflow() error {
 	)
 }
 
+// stepGenerateMainGo writes main.go from template, overwriting cobra-cli generated version.
+func (s *Scaffolder) stepGenerateMainGo() error {
+	return OverwriteTemplateFile(
+		filepath.Join(s.Config.ProjectDir, "main.go"),
+		"main_go.tmpl",
+		s.templateData(),
+		s.Config.DryRun,
+		s.Logger,
+	)
+}
+
+// stepGenerateRootCmd writes cmd/root.go from template, overwriting cobra-cli generated version.
+func (s *Scaffolder) stepGenerateRootCmd() error {
+	return OverwriteTemplateFile(
+		filepath.Join(s.Config.ProjectDir, "cmd", "root.go"),
+		"cmd_root_go.tmpl",
+		s.templateData(),
+		s.Config.DryRun,
+		s.Logger,
+	)
+}
+
+// stepGenerateCIWorkflow writes .github/workflows/ci.yml from template.
+func (s *Scaffolder) stepGenerateCIWorkflow() error {
+	if !s.Config.IsEnabled(CapRelease) {
+		s.Logger.Info("Skipping CI workflow (--no-release)")
+		return nil
+	}
+	dir := filepath.Join(s.Config.ProjectDir, ".github", "workflows")
+	if !s.Config.DryRun {
+		os.MkdirAll(dir, 0o755)
+	}
+	return WriteTemplateFile(
+		filepath.Join(dir, "ci.yml"),
+		"github_ci_yml.tmpl",
+		s.templateData(),
+		s.Config.DryRun,
+		s.Logger,
+	)
+}
+
+// stepGenerateDocsWorkflow writes .github/workflows/docs.yml from template.
+func (s *Scaffolder) stepGenerateDocsWorkflow() error {
+	if !s.Config.IsEnabled(CapDocs) {
+		s.Logger.Info("Skipping docs workflow (--no-docs)")
+		return nil
+	}
+	dir := filepath.Join(s.Config.ProjectDir, ".github", "workflows")
+	if !s.Config.DryRun {
+		os.MkdirAll(dir, 0o755)
+	}
+	return WriteTemplateFile(
+		filepath.Join(dir, "docs.yml"),
+		"github_docs_yml.tmpl",
+		s.templateData(),
+		s.Config.DryRun,
+		s.Logger,
+	)
+}
+
+// stepGeneratePycodesignConfig writes the pycodesign config template.
+func (s *Scaffolder) stepGeneratePycodesignConfig() error {
+	if !s.Config.IsEnabled(CapRelease) {
+		s.Logger.Info("Skipping pycodesign config (--no-release)")
+		return nil
+	}
+	return WriteTemplateFile(
+		filepath.Join(s.Config.ProjectDir, s.Config.ProjectName+"_pycodesign.ini"),
+		"pycodesign_ini.tmpl",
+		s.templateData(),
+		s.Config.DryRun,
+		s.Logger,
+	)
+}
+
 // stepGenerateDockerignore writes .dockerignore from template.
 func (s *Scaffolder) stepGenerateDockerignore() error {
 	if !s.Config.IsEnabled(CapDocker) {
@@ -434,7 +510,89 @@ func (s *Scaffolder) stepInitUI() error {
 		return nil
 	}
 
-	return s.Executor.Execute("bun init --react=shadcn ui", "Initializing React/shadcn/Tailwind UI in ui/")
+	if err := s.Executor.Execute("bun init --react=shadcn ui", "Initializing React/shadcn/Tailwind UI in ui/"); err != nil {
+		return err
+	}
+
+	// Write build.ts with publicPath: "/" to fix SPA routing on refresh
+	if err := WriteTemplateFile(
+		filepath.Join(uiDir, "build.ts"),
+		"build_ts.tmpl",
+		s.templateData(),
+		s.Config.DryRun,
+		s.Logger,
+	); err != nil {
+		return err
+	}
+
+	// Update package.json build script to use build.ts
+	if !s.Config.DryRun {
+		if err := s.Executor.Execute(
+			`cd ui && jq '.scripts.build = "bun run build.ts"' package.json > tmp.json && mv tmp.json package.json`,
+			"Updating UI build script to use build.ts",
+		); err != nil {
+			s.Logger.Warning("Could not update package.json build script (jq may not be installed)")
+		}
+	} else {
+		s.Logger.Warning("[DRY-RUN] Would update ui/package.json build script to 'bun run build.ts'")
+	}
+
+	return nil
+}
+
+// stepConfigureGitHubPages attempts to enable GitHub Pages with Actions source.
+func (s *Scaffolder) stepConfigureGitHubPages() error {
+	if !s.Config.IsEnabled(CapDocs) {
+		s.Logger.Info("Skipping GitHub Pages configuration (--no-docs)")
+		return nil
+	}
+
+	if !CheckCommand("gh") {
+		s.Logger.Warning("gh CLI not installed, skipping GitHub Pages configuration")
+		s.Logger.Info("Install gh: https://cli.github.com/")
+		return nil
+	}
+
+	// Derive owner/repo from module path
+	owner := ""
+	parts := strings.Split(s.Config.GoModulePath, "/")
+	if len(parts) >= 2 {
+		owner = parts[1]
+	}
+	repo := fmt.Sprintf("%s/%s", owner, s.Config.ProjectName)
+
+	// Check if repo exists on GitHub
+	if s.Executor.RunCommandQuiet("gh", "repo", "view", repo, "--json", "name") != nil {
+		s.Logger.Warning(fmt.Sprintf("GitHub repo %s not found, skipping Pages configuration", repo))
+		s.Logger.Info("After creating the repo, run:")
+		s.Logger.Plain(fmt.Sprintf("  gh api repos/%s/pages -X POST --field build_type=workflow", repo))
+		s.Logger.Plain(fmt.Sprintf("  gh repo edit %s --homepage 'https://%s.github.io/%s/'", repo, owner, s.Config.ProjectName))
+		return nil
+	}
+
+	// Try to enable Pages with GitHub Actions source
+	if s.Config.DryRun {
+		s.Logger.Warning("[DRY-RUN] Would enable GitHub Pages with Actions source")
+		return nil
+	}
+
+	// POST to enable Pages (handle 409 if already enabled)
+	err := s.Executor.RunCommandQuiet("gh", "api", fmt.Sprintf("repos/%s/pages", repo),
+		"-X", "POST", "--field", "build_type=workflow")
+	if err != nil {
+		// Try PUT in case it's already enabled but needs updating
+		_ = s.Executor.RunCommandQuiet("gh", "api", fmt.Sprintf("repos/%s/pages", repo),
+			"-X", "PUT", "--field", "build_type=workflow")
+	}
+
+	// Set homepage URL
+	_ = s.Executor.Execute(
+		fmt.Sprintf("gh repo edit %s --homepage 'https://%s.github.io/%s/'", repo, owner, s.Config.ProjectName),
+		"Setting GitHub repo homepage URL",
+	)
+
+	s.Logger.Success("GitHub Pages configured with Actions source")
+	return nil
 }
 
 // stepInitGit initializes git, creates .gitignore, and makes an initial commit.
@@ -487,6 +645,13 @@ func (s *Scaffolder) stepInitGit() error {
 
 // stepPrintSummary prints the "Next steps" summary.
 func (s *Scaffolder) stepPrintSummary() {
+	// Derive owner from module path
+	owner := ""
+	parts := strings.Split(s.Config.GoModulePath, "/")
+	if len(parts) >= 2 {
+		owner = parts[1]
+	}
+
 	s.Logger.Plain("")
 	s.Logger.Success("Project initialization complete!")
 	s.Logger.Plain("")
@@ -519,5 +684,12 @@ func (s *Scaffolder) stepPrintSummary() {
 		step++
 		s.Logger.Plain(fmt.Sprintf("  %d. Run 'make help' to see all available targets", step))
 	}
+
+	// GitHub setup instructions
+	s.Logger.Plain("")
+	s.Logger.Info("GitHub Setup:")
+	s.Logger.Plain(fmt.Sprintf("  Run 'gh repo create %s/%s --public --source=.' to create the GitHub repo", owner, s.Config.ProjectName))
+	s.Logger.Plain(fmt.Sprintf("  Run 'gh api repos/%s/%s/pages -X POST --field build_type=workflow' to enable GitHub Pages", owner, s.Config.ProjectName))
+	s.Logger.Plain(fmt.Sprintf("  Run 'gh repo edit --homepage \"https://%s.github.io/%s/\"' to set the docs URL", owner, s.Config.ProjectName))
 	s.Logger.Plain("")
 }

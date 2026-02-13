@@ -1,91 +1,81 @@
-# goreleaser release --clean --verbose
-# goreleaser release --snapshot --clean --skip homebrew,docker
-
-project_name: {{.ProjectName}}
 version: 2
+project_name: {{.ProjectName}}
 
 before:
   hooks:
     - go mod download
+    - sh -c "cd ui && bun install --frozen-lockfile"
+    - sh -c "cd ui && bun run build"
+    - sh -c "rm -rf internal/ui/dist/assets && cp -r ui/dist/* internal/ui/dist/"
 
 builds:
-  - id: {{.ProjectName}}
+  - id: {{.ProjectName}}-linux
     binary: {{.ProjectName}}
-    dir: .
-    main: main.go
-    env:
-      - CGO_ENABLED=0
-    goos:
-      - linux
-    goarch:
-      - amd64
-      - arm64
+    env: [CGO_ENABLED=0]
+    goos: [linux]
+    goarch: [amd64, arm64]
     ldflags:
-      - -X {{.GoModulePath}}/cmd.version={{"{{"}} .Version {{"}}"}}
-      - -X {{.GoModulePath}}/cmd.commit={{"{{"}} .Commit {{"}}"}}
-      - -X {{.GoModulePath}}/cmd.date={{"{{"}} .Date {{"}}"}}
+      - -s -w
+      - -X main.version={{"{{"}} .Version {{"}}"}}
+      - -X main.commit={{"{{"}} .Commit {{"}}"}}
+      - -X main.date={{"{{"}} .Date {{"}}"}}
+    mod_timestamp: "{{"{{"}} .CommitTimestamp {{"}}"}}"
 
   - id: {{.ProjectName}}-macos
     binary: {{.ProjectName}}
-    dir: .
-    main: main.go
-    env:
-      - CGO_ENABLED=0
-    goos:
-      - darwin
-    goarch:
-      - amd64
+    env: [CGO_ENABLED=0]
+    goos: [darwin]
+    goarch: [amd64, arm64]
     ldflags:
-      - -X {{.GoModulePath}}/cmd.version={{"{{"}} .Version {{"}}"}}
-      - -X {{.GoModulePath}}/cmd.commit={{"{{"}} .Commit {{"}}"}}
-      - -X {{.GoModulePath}}/cmd.date={{"{{"}} .Date {{"}}"}}
+      - -s -w
+      - -X main.version={{"{{"}} .Version {{"}}"}}
+      - -X main.commit={{"{{"}} .Commit {{"}}"}}
+      - -X main.date={{"{{"}} .Date {{"}}"}}
+    mod_timestamp: "{{"{{"}} .CommitTimestamp {{"}}"}}"
 
-# MacOS Universal Binaries
+  - id: {{.ProjectName}}-windows
+    binary: {{.ProjectName}}
+    env: [CGO_ENABLED=0]
+    goos: [windows]
+    goarch: [amd64, arm64]
+    ldflags:
+      - -s -w
+      - -X main.version={{"{{"}} .Version {{"}}"}}
+      - -X main.commit={{"{{"}} .Commit {{"}}"}}
+      - -X main.date={{"{{"}} .Date {{"}}"}}
+    mod_timestamp: "{{"{{"}} .CommitTimestamp {{"}}"}}"
+
 universal_binaries:
   - id: {{.ProjectName}}-macos
     replace: true
+    # Uncomment for code-signed builds:
+    # hooks:
+    #   post: uv run /path/to/pycodesign.py {{.ProjectName}}_pycodesign.ini -O {{"{{"}} .Version {{"}}"}}
 
 archives:
   - id: {{.ProjectName}}-linux-archive
-    ids:
-      - {{.ProjectName}}
+    ids: [{{.ProjectName}}-linux]
+    formats: ["tar.gz"]
+    name_template: "{{"{{"}} .ProjectName {{"}}"}}_{{"{{"}} title .Os {{"}}"}}_{{"{{"}} if eq .Arch \"amd64\" {{"}}"}}x86_64{{"{{"}} else {{"}}"}}{{"{{"}} .Arch {{"}}"}}{{"{{"}} end {{"}}"}}"
+    files: [README.md]
 
-  - id: {{.ProjectName}}-archive
-    ids:
-      - {{.ProjectName}}-macos
-    formats:
-      - zip
-    files:
-      - none*
+  - id: {{.ProjectName}}-macos-archive
+    ids: [{{.ProjectName}}-macos]
+    formats: ["zip"]
+    name_template: "{{"{{"}} .ProjectName {{"}}"}}_{{"{{"}} title .Os {{"}}"}}_{{"{{"}} if eq .Arch \"amd64\" {{"}}"}}x86_64{{"{{"}} else {{"}}"}}{{"{{"}} .Arch {{"}}"}}{{"{{"}} end {{"}}"}}"
+    files: [README.md]
+
+  - id: {{.ProjectName}}-windows-archive
+    ids: [{{.ProjectName}}-windows]
+    formats: ["zip"]
+    name_template: "{{"{{"}} .ProjectName {{"}}"}}_{{"{{"}} title .Os {{"}}"}}_{{"{{"}} if eq .Arch \"amd64\" {{"}}"}}x86_64{{"{{"}} else {{"}}"}}{{"{{"}} .Arch {{"}}"}}{{"{{"}} end {{"}}"}}"
+    files: [README.md]
 
 checksum:
   name_template: "checksums.txt"
 
-release:
-  github:
-    owner: {{.GoModuleOwner}}
-    name: {{.ProjectName}}
-  ids:
-    - {{.ProjectName}}-archive
-    - {{.ProjectName}}-linux-archive
-  draft: false
-
 snapshot:
-  version_template: "{{"{{"}} incpatch .Version {{"}}"}}-devel"
-
-# Uncomment and configure for Homebrew distribution:
-# brews:
-#   - repository:
-#       owner: {{.GoModuleOwner}}
-#       name: homebrew-tap
-#       token: "{{"{{"}} .Env.HOMEBREW_TAP_TOKEN {{"}}"}}"
-#     directory: Formula
-#     homepage: "https://github.com/{{.GoModuleOwner}}/{{.ProjectName}}"
-#     description: "Description of {{.ProjectName}}"
-#     install: |
-#       bin.install "{{.ProjectName}}"
-#     test: |
-#       system "#\{bin}/{{.ProjectName}}", "version"
+  version_template: "{{"{{"}} incpatch .Version {{"}}"}}-next"
 
 changelog:
   sort: asc
@@ -102,18 +92,36 @@ changelog:
     exclude:
       - "^docs:"
       - "^test:"
+      - "^ci:"
+      - "^chore:"
 
-# Multi-platform Docker images
+release:
+  github:
+    owner: {{.GoModuleOwner}}
+    name: {{.ProjectName}}
+  ids: [{{.ProjectName}}-macos-archive, {{.ProjectName}}-linux-archive, {{.ProjectName}}-windows-archive]
+  draft: true
+  replace_existing_draft: true
+  prerelease: auto
+
+# Homebrew Formula (for unsigned CLI tools)
+# Switch to homebrew_casks: for signed macOS apps with .pkg installer
+brews:
+  - repository:
+      owner: {{.GoModuleOwner}}
+      name: homebrew-tap
+      token: "{{"{{"}} .Env.HOMEBREW_TAP_TOKEN {{"}}"}}"
+    directory: Formula
+    homepage: "https://github.com/{{.GoModuleOwner}}/{{.ProjectName}}"
+    description: "Description of {{.ProjectName}}"
+    install: |
+      bin.install "{{.ProjectName}}"
+    test: |
+      system "#\{bin}/{{.ProjectName}}", "version"
+
 dockers_v2:
   - images:
       - "ghcr.io/{{.GoModuleOwner}}/{{.ProjectName}}"
     tags:
       - "v{{"{{"}} .Version {{"}}"}}"
       - "latest"
-    labels:
-      "org.opencontainers.image.title": "{{"{{"}} .ProjectName {{"}}"}}"
-      "org.opencontainers.image.description": "{{"{{"}} .ProjectName {{"}}"}}"
-      "org.opencontainers.image.url": "https://github.com/{{.GoModuleOwner}}/{{"{{"}} .ProjectName {{"}}"}}"
-      "org.opencontainers.image.source": "https://github.com/{{.GoModuleOwner}}/{{"{{"}} .ProjectName {{"}}"}}"
-      "org.opencontainers.image.version": "{{"{{"}} .Version {{"}}"}}"
-      "org.opencontainers.image.revision": "{{"{{"}} .FullCommit {{"}}"}}"

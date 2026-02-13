@@ -328,8 +328,8 @@ func TestStepGenerateVersionCmdIdempotent(t *testing.T) {
 	if !strings.Contains(string(content), "testproj") {
 		t.Error("expected project name in version.go")
 	}
-	if !strings.Contains(string(content), "ldflags") {
-		t.Error("expected ldflags comment in version.go")
+	if !strings.Contains(string(content), "buildVersion") {
+		t.Error("expected buildVersion reference in version.go")
 	}
 
 	// Second call should skip

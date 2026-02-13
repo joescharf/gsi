@@ -1,7 +1,9 @@
 site_name: gsi Documentation
-site_url: https://gsi.example.com
+site_url: https://joescharf.github.io/gsi/
 site_description: "gsi documentation"
-edit_uri: ""
+repo_url: https://github.com/joescharf/gsi
+repo_name: joescharf/gsi
+edit_uri: edit/main/docs/docs/
 
 extra_css:
   - stylesheets/extra.css

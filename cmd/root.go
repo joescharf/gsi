@@ -84,8 +84,18 @@ Examples:
 	},
 }
 
+var (
+	buildVersion string
+	buildCommit  string
+	buildDate    string
+)
+
 // Execute is the CLI entry point called by main.
-func Execute() {
+func Execute(version, commit, date string) {
+	buildVersion = version
+	buildCommit = commit
+	buildDate = date
+
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)
 	}

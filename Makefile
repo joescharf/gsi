@@ -4,7 +4,7 @@ MODULE := $(shell head -1 go.mod | awk '{print $$2}')
 VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 COMMIT := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 BUILD_DATE := $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
-LDFLAGS := -ldflags "-X $(MODULE)/cmd.version=$(VERSION) -X $(MODULE)/cmd.commit=$(COMMIT) -X $(MODULE)/cmd.date=$(BUILD_DATE)"
+LDFLAGS := -ldflags "-s -w -X main.version=$(VERSION) -X main.commit=$(COMMIT) -X main.date=$(BUILD_DATE)"
 
 .DEFAULT_GOAL := build
 
@@ -46,13 +46,16 @@ fmt: ## Run gofmt
 	gofmt -s -w .
 
 ##@ Release
-.PHONY: release release-snapshot
+.PHONY: release release-local release-snapshot
 
 release: ## Create a release with goreleaser
 	goreleaser release --clean
 
+release-local: ## Create a signed local release (macOS code-signing)
+	goreleaser release --clean
+
 release-snapshot: ## Create a snapshot release (no publish)
-	goreleaser release --snapshot --clean --skip homebrew,docker
+	goreleaser release --snapshot --clean --skip docker,homebrew
 
 ##@ Help
 .PHONY: help

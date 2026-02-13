@@ -1,0 +1,12 @@
+[identification]
+application_id = <YOUR_APPLICATION_CERT_FINGERPRINT>
+installer_id = <YOUR_INSTALLER_CERT_FINGERPRINT>
+keychain-profile = <YOUR_KEYCHAIN_PROFILE>
+
+[package_details]
+package_name = ./dist/{{.ProjectName}}_macos_universal
+bundle_id = com.example.{{.ProjectName}}
+file_list = ./dist/{{.ProjectName}}-macos_darwin_all/{{.ProjectName}}
+installation_path = /usr/local/bin
+entitlements = None
+version = 0.0.0

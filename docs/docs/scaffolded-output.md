@@ -10,9 +10,9 @@ my-app/
 ├── cmd/
 │   ├── config.go           # Config command (init/edit/check subcommands)
 │   ├── config_init.go      # Viper config file discovery wiring
-│   ├── root.go             # Cobra root command with viper config
+│   ├── root.go             # Cobra root command with Execute(version, commit, date)
 │   ├── serve.go            # Embedded web UI server command
-│   └── version.go          # Version subcommand (ldflags-injected)
+│   └── version.go          # Version subcommand (uses buildVersion from root)
 ├── docs/
 │   ├── docs/
 │   │   ├── stylesheets/
@@ -37,15 +37,29 @@ my-app/
 ├── .editorconfig            # Consistent editor settings
 ├── .github/
 │   └── workflows/
-│       └── release.yml      # GitHub Actions release workflow
+│       ├── ci.yml           # CI workflow (test + lint)
+│       ├── docs.yml         # Docs deployment to GitHub Pages
+│       └── release.yml      # Release workflow (manual dispatch)
 ├── .gitignore               # Standard Go + docs + UI ignores
-├── .goreleaser.yml          # Release automation config
+├── .goreleaser.yml          # Release automation (3-platform, Docker, Homebrew)
 ├── .mockery.yml             # Mock generation config
-├── Dockerfile               # Multi-platform Alpine image
-├── Makefile                 # Build, test, lint, release, docs, UI targets
+├── Dockerfile               # Multi-platform Alpine 3.21 image (non-root user)
+├── Makefile                 # Build, test, lint, release, release-local, docs, UI targets
+├── my-app_pycodesign.ini    # macOS code signing config template
 ├── go.mod                   # Go module definition
 ├── go.sum                   # Dependency checksums
-└── main.go                  # Entry point
+└── main.go                  # Entry point with version vars, calls cmd.Execute()
+```
+
+With `--ui`:
+
+```
+ui/
+├── build.ts               # Bun build script with publicPath: "/" (SPA fix)
+├── package.json           # Build script set to "bun run build.ts"
+├── src/
+│   └── ...                # React/shadcn/Tailwind app
+└── ...
 ```
 
 ## File Descriptions
@@ -54,9 +68,9 @@ my-app/
 
 | File | Purpose |
 |------|---------|
-| `main.go` | Entry point, calls `cmd.Execute()` |
-| `cmd/root.go` | Root cobra command with viper flag bindings |
-| `cmd/version.go` | Prints version/commit/date injected via ldflags |
+| `main.go` | Entry point with `version`, `commit`, `date` vars; calls `cmd.Execute(version, commit, date)` |
+| `cmd/root.go` | Root cobra command with `Execute(version, commit, date string)` that stores build metadata |
+| `cmd/version.go` | Prints version/commit/date from `buildVersion`/`buildCommit`/`buildDate` set by Execute |
 | `cmd/serve.go` | Starts HTTP server serving the embedded UI |
 | `cmd/config.go` | `config init`, `config edit`, `config check` subcommands |
 | `cmd/config_init.go` | Wires `initConfig()` via `cobra.OnInitialize` for viper config file discovery |
@@ -67,11 +81,14 @@ my-app/
 
 | File | Purpose |
 |------|---------|
-| `Makefile` | Targets for build, test, lint, release, docs, and UI |
-| `.goreleaser.yml` | Goreleaser v2 config: binaries, archives, Docker, changelog |
-| `.github/workflows/release.yml` | GitHub Actions workflow triggered on version tags |
-| `Dockerfile` | Alpine-based multi-platform image |
+| `Makefile` | Targets for build, test, lint, release, release-local, docs, and UI |
+| `.goreleaser.yml` | Goreleaser v2: 3-platform builds (Linux/macOS/Windows), archives, Docker, Homebrew, changelog |
+| `.github/workflows/release.yml` | Manual dispatch release with QEMU, Buildx, GHCR login, GoReleaser |
+| `.github/workflows/ci.yml` | Push/PR CI: test + lint jobs with bun UI embed |
+| `.github/workflows/docs.yml` | GitHub Pages deployment for mkdocs-material docs |
+| `Dockerfile` | Alpine 3.21, non-root user, tzdata, TARGETPLATFORM, env var for DB path |
 | `.dockerignore` | Keeps Docker context small |
+| `<project>_pycodesign.ini` | macOS code signing config template (Developer ID certs) |
 
 ### Embedded UI
 
@@ -79,12 +96,13 @@ my-app/
 |------|---------|
 | `internal/ui/embed.go` | `//go:embed all:dist` directive |
 | `internal/ui/dist/index.html` | Default placeholder page |
+| `ui/build.ts` | Bun build script with `publicPath: "/"` for SPA routing (when `--ui`) |
 
 ### Documentation
 
 | File | Purpose |
 |------|---------|
-| `docs/mkdocs.yml` | mkdocs-material site config |
+| `docs/mkdocs.yml` | mkdocs-material config with `site_url`, `repo_url`, `repo_name`, `edit_uri` |
 | `docs/pyproject.toml` | Python deps managed by uv |
 | `docs/docs/index.md` | Landing page |
 | `docs/docs/getting-started.md` | Installation and usage guide |
@@ -109,11 +127,11 @@ Each of the following can be toggled with `--<name>` / `--no-<name>` flags:
 | `bmad` | `_bmad/` | ON |
 | `config` | `cmd/config.go`, `cmd/config_init.go`, `internal/config/config.go` | ON |
 | `git` | `.git/`, `.gitignore`, initial commit | ON |
-| `docs` | `docs/` and all contents | ON |
-| `ui` | `ui/` (React/shadcn/Tailwind app) | OFF |
+| `docs` | `docs/` and all contents, `.github/workflows/docs.yml` | ON |
+| `ui` | `ui/` (React/shadcn/Tailwind app with `build.ts`) | OFF |
 | `goreleaser` | `.goreleaser.yml` | ON |
 | `docker` | `Dockerfile`, `.dockerignore` | ON |
-| `release` | `.github/workflows/release.yml` | ON |
+| `release` | `.github/workflows/release.yml`, `.github/workflows/ci.yml`, `<project>_pycodesign.ini` | ON |
 | `mockery` | `.mockery.yml` | ON |
 | `editorconfig` | `.editorconfig` | ON |
 | `makefile` | `Makefile` | ON |
@@ -146,5 +164,6 @@ gsi is designed to be run multiple times safely:
 - **Directories that exist are reused** -- no error if the project dir already exists
 - **Git repos with commits skip the initial commit** -- won't create duplicate commits
 - **Dependencies already present are skipped** -- `cobra-cli`, `uv`, packages, etc.
+- **main.go and cmd/root.go are always overwritten** -- these are regenerated from templates to ensure the `main.*` ldflags pattern
 
 This means you can run `gsi --only-docs .` on an existing project, or re-run `gsi .` to add missing files without overwriting customized ones.

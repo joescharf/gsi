@@ -1,0 +1,35 @@
+package cmd
+
+import (
+	"fmt"
+	"os"
+
+	"github.com/spf13/cobra"
+)
+
+var (
+	buildVersion string
+	buildCommit  string
+	buildDate    string
+)
+
+var rootCmd = &cobra.Command{
+	Use:   "{{.ProjectName}}",
+	Short: "{{.ProjectName}} CLI application",
+}
+
+// Execute is the main entry point called from main.go.
+func Execute(version, commit, date string) {
+	buildVersion = version
+	buildCommit = commit
+	buildDate = date
+
+	if err := rootCmd.Execute(); err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
+	}
+}
+
+func init() {
+	// Add initialization logic here
+}

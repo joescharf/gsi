@@ -9,13 +9,16 @@ Instead of manually setting up cobra, viper, makefiles, docker, goreleaser, docs
 - **CLI framework** -- Cobra + Viper with version command and config management (`config init/edit/check`)
 - **Config scaffolding** -- Complete viper-based config system with `os.UserConfigDir()`, env vars, and `SetDefaults()`
 - **Embedded web UI** -- Serve command with SPA routing and a placeholder UI ready for React/shadcn
-- **Documentation** -- mkdocs-material site with live reload via `uv`
-- **Release automation** -- Goreleaser config for binaries, Docker images, and Homebrew
-- **Docker** -- Multi-platform Dockerfile and `.dockerignore`
+- **Documentation** -- mkdocs-material site with live reload via `uv`, auto-deployed to GitHub Pages
+- **Release automation** -- Goreleaser config for Linux, macOS (universal binary), and Windows, with Docker images and Homebrew
+- **CI/CD workflows** -- GitHub Actions for CI (test + lint), docs deployment, and releases (manual dispatch with QEMU + Buildx)
+- **macOS code signing** -- Pycodesign config template for Developer ID signing and notarization
+- **Docker** -- Alpine 3.21 Dockerfile with non-root user, multi-platform support, and `.dockerignore`
 - **Testing** -- Mockery config, coverage targets, race detection
 - **Code quality** -- EditorConfig, golangci-lint, go vet, gofmt targets
-- **Optional React UI** -- `--ui` flag scaffolds a React/shadcn/Tailwind frontend via bun
+- **Optional React UI** -- `--ui` flag scaffolds a React/shadcn/Tailwind frontend with `publicPath: "/"` SPA fix
 - **BMAD method** -- Optional agile framework scaffolding
+- **GitHub Pages** -- Automatic setup with `gh` CLI when repo exists
 
 ## Prerequisites
 

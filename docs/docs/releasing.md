@@ -1,6 +1,6 @@
 # Releasing
 
-gsi scaffolds a [goreleaser](https://goreleaser.com) configuration that automates building binaries, Docker images, and optionally Homebrew distribution.
+gsi scaffolds a complete [goreleaser](https://goreleaser.com) configuration that automates building binaries for Linux, macOS, and Windows, Docker images, Homebrew distribution, and optional macOS code signing.
 
 ## Prerequisites
 
@@ -20,15 +20,18 @@ make release-snapshot
 This runs:
 
 ```bash
-goreleaser release --snapshot --clean --skip homebrew,docker
+goreleaser release --snapshot --clean --skip docker,homebrew
 ```
 
 Check the output in `dist/`:
 
 ```bash
 ls dist/
-# myapp_0.0.1-devel_linux_amd64.tar.gz
-# myapp_0.0.1-devel_darwin_all.zip
+# myapp_Linux_x86_64.tar.gz
+# myapp_Linux_arm64.tar.gz
+# myapp_Darwin_all.zip
+# myapp_Windows_x86_64.zip
+# myapp_Windows_arm64.zip
 # checksums.txt
 
 # Verify the binary
@@ -37,25 +40,30 @@ ls dist/
 
 ## Creating a Release
 
-### 1. Tag the Release
+### Via GitHub Actions (recommended)
+
+The scaffolded release workflow uses manual dispatch:
+
+1. Go to **Actions > Release** in your GitHub repo
+2. Click **Run workflow**
+3. Enter the tag (e.g., `v1.0.0`)
+4. Click **Run workflow**
+
+The workflow handles Go setup, Bun, QEMU, Docker Buildx, GHCR login, and GoReleaser.
+
+### Locally
+
+For signed local releases (macOS code signing):
 
 ```bash
-git tag -a v0.1.0 -m "Release v0.1.0"
-git push origin v0.1.0
+make release-local
 ```
 
-### 2. Run Goreleaser
+For standard releases:
 
 ```bash
 make release
 ```
-
-This creates:
-
-- **Linux binaries** (amd64, arm64) as tar.gz archives
-- **macOS universal binary** as a zip archive
-- **Docker images** pushed to `ghcr.io/<owner>/<project>` with `v<version>` and `latest` tags
-- **GitHub release** with changelog, binaries, and checksums
 
 ## What Gets Built
 
@@ -63,24 +71,85 @@ The scaffolded `.goreleaser.yml` configures:
 
 | Artifact | Details |
 |----------|---------|
-| Linux binaries | amd64 and arm64, CGO disabled |
-| macOS universal binary | Combined amd64 binary |
-| Linux archives | tar.gz format |
-| macOS archives | zip format |
-| Docker images | Multi-platform via `dockers_v2` |
+| Linux binaries | amd64 and arm64, CGO disabled, tar.gz archives |
+| macOS universal binary | Combined amd64+arm64, zip archive |
+| Windows binaries | amd64 and arm64, zip archives |
+| Docker images | Multi-platform via `dockers_v2`, pushed to GHCR |
 | Checksums | SHA256 in `checksums.txt` |
-| Changelog | Grouped by feat/fix/other, excludes docs/test commits |
+| Changelog | Grouped by feat/fix/other, excludes docs/test/ci/chore commits |
+
+### ldflags
+
+All builds use:
+
+```
+-s -w -X main.version={{.Version}} -X main.commit={{.Commit}} -X main.date={{.Date}}
+```
+
+These target variables in `main.go` which passes them to `cmd.Execute(version, commit, date)`.
+
+### Before Hooks
+
+GoReleaser runs these before any build:
+
+1. `go mod download`
+2. `cd ui && bun install --frozen-lockfile`
+3. `cd ui && bun run build`
+4. Copy `ui/dist/*` into `internal/ui/dist/` for embedding
+
+## macOS Code Signing
+
+gsi scaffolds a `<project>_pycodesign.ini` template for macOS code signing and notarization. To enable:
+
+1. Replace the placeholder cert fingerprints in `<project>_pycodesign.ini`
+2. Uncomment the `hooks.post` line in `.goreleaser.yml` under `universal_binaries`
+3. Switch from `brews:` to `homebrew_casks:` for distributing signed .pkg installers
+
+The pycodesign integration:
+
+- Signs the macOS universal binary with Developer ID Application cert
+- Creates a notarized .pkg installer with Developer ID Installer cert
+- Uses `uv run pycodesign.py` for the signing workflow
+
+## CI/CD Workflows
+
+gsi scaffolds three GitHub Actions workflows:
+
+### Release (`.github/workflows/release.yml`)
+
+Manual dispatch with:
+
+- Go setup from `go.mod`
+- Bun setup for UI builds
+- QEMU for multi-arch Docker
+- Docker Buildx for multi-arch builds
+- GHCR login for container registry
+- GoReleaser (latest version)
+
+### CI (`.github/workflows/ci.yml`)
+
+Runs on push to main and PRs:
+
+- **test** job: Build UI, embed, run `go test` and `go vet`
+- **lint** job: Build UI, embed, run golangci-lint
+
+### Docs (`.github/workflows/docs.yml`)
+
+Runs on push to main (docs/** paths) and manual dispatch:
+
+- **build** job: `uv sync` + `mkdocs build` + upload pages artifact
+- **deploy** job: Deploy to GitHub Pages
 
 ## Homebrew Setup
 
-The Homebrew section is commented out by default. To enable it:
+The scaffolded config uses `brews:` (Formula) by default, suitable for unsigned CLI tools:
 
 1. Create a tap repository (e.g., `<owner>/homebrew-tap`)
-2. Uncomment the `brews` section in `.goreleaser.yml`
-3. Configure the repository owner, name, and description
-4. Create a GitHub personal access token (classic) with `repo` scope for write access to the tap repository
-5. For local releases, set the environment variable: `export HOMEBREW_TAP_TOKEN=ghp_...`
-6. For CI, add `HOMEBREW_TAP_TOKEN` as a repository secret
+2. Create a GitHub personal access token (classic) with `repo` scope
+3. For local releases, set: `export HOMEBREW_TAP_TOKEN=ghp_...`
+4. For CI, add `HOMEBREW_TAP_TOKEN` as a repository secret
+
+For signed macOS apps, switch to `homebrew_casks:` with a `Casks/` directory.
 
 After setup, users can install via:
 
@@ -90,47 +159,27 @@ brew install <owner>/tap/<project>
 
 ## Docker Setup
 
-Docker images are built automatically. To push to GitHub Container Registry:
+Docker images are built automatically via `dockers_v2`. The Dockerfile uses:
 
-1. Authenticate: `echo $GITHUB_TOKEN | docker login ghcr.io -u <username> --password-stdin`
-2. Ensure the `Dockerfile` is in your project root
-3. Run `make release` (or use CI/CD)
+- Alpine 3.21 (pinned, not `latest`)
+- Non-root user for security
+- `ca-certificates` and `tzdata` packages
+- `ARG TARGETPLATFORM` for multi-arch support
+- Environment variable for DB path: `<PROJECT>_DB_PATH=/data/<project>.db`
+- Exposed port 8080
 
 The images are tagged as:
 
 - `ghcr.io/<owner>/<project>:v<version>`
 - `ghcr.io/<owner>/<project>:latest`
 
-## CI/CD Integration
+## GitHub Pages Setup
 
-For GitHub Actions, create `.github/workflows/release.yml`:
+After creating your GitHub repo, enable Pages:
 
-```yaml
-name: Release
-on:
-  push:
-    tags:
-      - "v*"
-
-permissions:
-  contents: write
-  packages: write
-
-jobs:
-  release:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - uses: actions/setup-go@v5
-        with:
-          go-version: stable
-      - uses: goreleaser/goreleaser-action@v6
-        with:
-          version: "~> v2"
-          args: release --clean
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+```bash
+gh api repos/<owner>/<project>/pages -X POST --field build_type=workflow
+gh repo edit --homepage "https://<owner>.github.io/<project>/"
 ```
+
+gsi attempts this automatically during scaffold if the repo already exists on GitHub.

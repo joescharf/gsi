@@ -118,6 +118,7 @@ The scaffolded `Makefile` provides these target groups:
 | Target | Description |
 |--------|-------------|
 | `make release` | Create a release with goreleaser |
+| `make release-local` | Create a signed local release (macOS code-signing) |
 | `make release-snapshot` | Create a snapshot release (no publish) |
 
 ### Docs
@@ -151,17 +152,32 @@ The scaffolded `Makefile` provides these target groups:
 The Makefile injects version information at build time via ldflags:
 
 ```makefile
-LDFLAGS := -ldflags "-X $(MODULE)/cmd.version=$(VERSION) -X $(MODULE)/cmd.commit=$(COMMIT) -X $(MODULE)/cmd.date=$(BUILD_DATE)"
+LDFLAGS := -ldflags "-s -w -X main.version=$(VERSION) -X main.commit=$(COMMIT) -X main.date=$(BUILD_DATE)"
 ```
 
-These correspond to variables in `cmd/version.go`:
+These target variables in `main.go`, which passes them to `cmd.Execute(version, commit, date)`:
 
 ```go
+// main.go
 var (
     version = "dev"
-    commit  = "unknown"
+    commit  = "none"
     date    = "unknown"
 )
+
+func main() {
+    cmd.Execute(version, commit, date)
+}
 ```
 
-The version is derived from `git describe --tags --always --dirty`, so tag your releases (e.g., `git tag v0.1.0`) to get meaningful version strings.
+```go
+// cmd/root.go
+func Execute(version, commit, date string) {
+    buildVersion = version
+    buildCommit = commit
+    buildDate = date
+    // ...
+}
+```
+
+The `-s -w` flags strip debug info and DWARF tables for smaller binaries. The version is derived from `git describe --tags --always --dirty`, so tag your releases (e.g., `git tag v0.1.0`) to get meaningful version strings.

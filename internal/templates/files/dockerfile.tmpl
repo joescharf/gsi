@@ -1,5 +1,11 @@
-FROM alpine:latest
-RUN apk add --no-cache ca-certificates
+FROM alpine:3.21
+RUN apk add --no-cache ca-certificates tzdata
+RUN addgroup -S {{.ProjectName}} && adduser -S {{.ProjectName}} -G {{.ProjectName}}
+RUN mkdir -p /data && chown {{.ProjectName}}:{{.ProjectName}} /data
 ARG TARGETPLATFORM
-COPY $TARGETPLATFORM/{{.ProjectName}} /usr/local/bin/{{.ProjectName}}
+COPY ${TARGETPLATFORM}/{{.ProjectName}} /usr/local/bin/{{.ProjectName}}
+USER {{.ProjectName}}
+ENV {{.ProjectNameUpper}}_DB_PATH=/data/{{.ProjectName}}.db
+EXPOSE 8080
 ENTRYPOINT ["{{.ProjectName}}"]
+CMD ["serve"]

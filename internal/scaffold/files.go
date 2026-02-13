@@ -52,6 +52,33 @@ func writeTemplateFileWithMode(path, templateName string, data templates.Data, m
 	return nil
 }
 
+// OverwriteTemplateFile renders a template and writes it to path, overwriting if the file already exists.
+// This is used for files like main.go and cmd/root.go that cobra-cli creates first.
+func OverwriteTemplateFile(path, templateName string, data templates.Data, dryRun bool, log *logger.Logger) error {
+	if dryRun {
+		log.Warning(fmt.Sprintf("[DRY-RUN] Would create %s", path))
+		return nil
+	}
+
+	log.Info("Creating " + path)
+
+	content, err := templates.Render(templateName, data)
+	if err != nil {
+		return fmt.Errorf("rendering template %s: %w", templateName, err)
+	}
+
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return fmt.Errorf("creating directory for %s: %w", path, err)
+	}
+
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		return fmt.Errorf("writing %s: %w", path, err)
+	}
+
+	log.Success("Created " + path)
+	return nil
+}
+
 // WriteStaticFile writes static content to path, skipping if the file already exists.
 func WriteStaticFile(path string, content []byte, dryRun bool, log *logger.Logger) error {
 	if _, err := os.Stat(path); err == nil {

@@ -163,6 +163,8 @@ func (s *Scaffolder) Run() error {
 			s.stepInstallCobraCli,
 			s.stepGoModInit,
 			s.stepCobraInit,
+			s.stepGenerateMainGo,
+			s.stepGenerateRootCmd,
 			s.stepGenerateVersionCmd,
 			s.stepGenerateServeCmd,
 			s.stepGenerateConfigCmd,
@@ -178,6 +180,9 @@ func (s *Scaffolder) Run() error {
 			s.stepGenerateDockerfile,
 			s.stepGenerateDockerignore,
 			s.stepGenerateReleaseWorkflow,
+			s.stepGenerateCIWorkflow,
+			s.stepGenerateDocsWorkflow,
+			s.stepGeneratePycodesignConfig,
 		}
 		for _, step := range steps {
 			if err := step(); err != nil {
@@ -199,6 +204,11 @@ func (s *Scaffolder) Run() error {
 
 		// Git init
 		if err := s.stepInitGit(); err != nil {
+			return err
+		}
+
+		// Configure GitHub Pages
+		if err := s.stepConfigureGitHubPages(); err != nil {
 			return err
 		}
 	}

@@ -64,6 +64,8 @@ Starting project initialization...
   cobra-cli is already installed
   Initializing Go module
   Creating Cobra CLI application structure
+  Creating main.go
+  Creating cmd/root.go
   Creating cmd/version.go
   Creating cmd/serve.go
   Creating cmd/config.go
@@ -79,9 +81,17 @@ Starting project initialization...
   Creating Dockerfile
   Creating .dockerignore
   Creating .github/workflows/release.yml
+  Creating .github/workflows/ci.yml
+  Creating .github/workflows/docs.yml
+  Creating my-app_pycodesign.ini
   Initializing docs...
   Creating .gitignore
   Creating initial commit
+
+GitHub Setup:
+  Run 'gh repo create joescharf/my-app --public --source=.' to create the GitHub repo
+  Run 'gh api repos/joescharf/my-app/pages -X POST --field build_type=workflow' to enable GitHub Pages
+  Run 'gh repo edit --homepage "https://joescharf.github.io/my-app/"' to set the docs URL
 
 Project initialization complete!
 ```
