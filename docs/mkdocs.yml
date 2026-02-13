@@ -43,6 +43,7 @@ nav:
   - What Gets Scaffolded: scaffolded-output.md
   - Configuration: configuration.md
   - Releasing: releasing.md
+  - Release Infrastructure: release-infrastructure.md
   - Contributing: contributing.md
 
 markdown_extensions:
