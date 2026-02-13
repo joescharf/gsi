@@ -61,7 +61,7 @@ archives:
   - id: gsi-macos-archive
     ids: [gsi-macos]
     formats: ["zip"]
-    name_template: "{{ .ProjectName }}_{{ title .Os }}_{{ if eq .Arch \"amd64\" }}x86_64{{ else }}{{ .Arch }}{{ end }}"
+    name_template: "{{ .ProjectName }}_{{ title .Os }}_{{ if eq .Arch \"amd64\" }}x86_64{{ else if eq .Arch \"all\" }}universal{{ else }}{{ .Arch }}{{ end }}"
     files: [README.md]
 
   - id: gsi-windows-archive
@@ -69,6 +69,18 @@ archives:
     formats: ["zip"]
     name_template: "{{ .ProjectName }}_{{ title .Os }}_{{ if eq .Arch \"amd64\" }}x86_64{{ else }}{{ .Arch }}{{ end }}"
     files: [README.md]
+
+signs:
+  - id: notarize-macos-zip
+    cmd: sh
+    args:
+      - -c
+      - 'xcrun notarytool submit "${artifact}" --keychain-profile SCHARFNADO_LLC --wait && touch "${signature}"'
+    artifacts: archive
+    ids:
+      - gsi-macos-archive
+    signature: "${artifact}.notarized"
+    output: true
 
 checksum:
   name_template: "checksums.txt"
@@ -101,23 +113,22 @@ release:
   ids: [gsi-macos-archive, gsi-linux-archive, gsi-windows-archive]
   extra_files:
     - glob: ./dist/gsi_macos_universal.pkg
-  draft: true
-  replace_existing_draft: true
+  draft: false
   prerelease: auto
 
 # brew install joescharf/tap/gsi
-brews:
-  - repository:
+homebrew_casks:
+  - name: gsi
+    ids:
+      - gsi-macos-archive
+    repository:
       owner: joescharf
       name: homebrew-tap
       token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
-    directory: Formula
+    directory: Casks
+    skip_upload: auto
     homepage: "https://github.com/joescharf/gsi"
     description: "Initialize Go projects with best practices and tooling"
-    install: |
-      bin.install "gsi"
-    test: |
-      system "#{bin}/gsi", "version"
 
 dockers_v2:
   - images:
