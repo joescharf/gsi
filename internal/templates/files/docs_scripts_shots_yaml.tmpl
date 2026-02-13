@@ -1,0 +1,29 @@
+# Screenshot configuration for shot-scraper (https://shot-scraper.datasette.io/)
+#
+# Prerequisites:
+#   pip install shot-scraper && shot-scraper install
+#
+# Usage:
+#   shot-scraper multi shots.yaml
+#
+# Customize entries below for your app's pages.
+
+# Dashboard / home page
+- output: img-raw/{{.ProjectName}}-dashboard.png
+  url: http://localhost:8080
+  wait: 500
+  width: 1024
+  javascript: |
+    (async () => {
+      await new Promise(r => setTimeout(r, 500));
+    })();
+
+# Example detail page — update the URL path for your app
+- output: img-raw/{{.ProjectName}}-detail.png
+  url: http://localhost:8080/example
+  wait: 500
+  width: 1024
+  javascript: |
+    (async () => {
+      await new Promise(r => setTimeout(r, 500));
+    })();

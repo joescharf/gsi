@@ -104,6 +104,10 @@ docs/
     getting-started.md # Starter page with install/usage
     stylesheets/
       extra.css        # Compact nav + smaller code font
+  scripts/
+    scrape.sh              # Screenshot capture pipeline
+    shots.yaml             # shot-scraper page configuration
+    add_browser_frame.py   # Adds macOS browser frames to screenshots
 ```
 
 To serve the docs locally:
@@ -111,6 +115,16 @@ To serve the docs locally:
 ```sh
 cd docs/ && uv run mkdocs serve
 ```
+
+### Screenshot pipeline
+
+The `docs/scripts/` directory contains a screenshot capture pipeline for documentation images. It uses [shot-scraper](https://shot-scraper.datasette.io/) to capture pages from a running local server, adds macOS-style browser frames via a Python script, and compresses the results with [imageoptim-cli](https://github.com/JamieMason/ImageOptim-CLI):
+
+```sh
+cd docs/scripts/ && bash scrape.sh
+```
+
+Edit `shots.yaml` to configure which pages to capture. The pipeline outputs to `docs/docs/img/`.
 
 If `uv` is not installed, docs scaffolding is skipped automatically with a warning. Use `--no-docs` to opt out explicitly.
 

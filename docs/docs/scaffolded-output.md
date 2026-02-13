@@ -19,7 +19,11 @@ my-app/
 │   │   │   └── extra.css   # Custom mkdocs theme overrides
 │   │   ├── getting-started.md
 │   │   └── index.md
-│   ├── .gitignore           # Ignores site/ and .venv/
+│   ├── scripts/
+│   │   ├── add_browser_frame.py  # Adds macOS browser frames to screenshots
+│   │   ├── scrape.sh             # Screenshot capture pipeline
+│   │   └── shots.yaml            # shot-scraper page configuration
+│   ├── .gitignore           # Ignores site/, .venv/, scripts/img*
 │   ├── mkdocs.yml           # mkdocs-material configuration
 │   └── pyproject.toml       # uv-managed Python dependencies
 ├── internal/
@@ -84,6 +88,9 @@ my-app/
 | `docs/pyproject.toml` | Python deps managed by uv |
 | `docs/docs/index.md` | Landing page |
 | `docs/docs/getting-started.md` | Installation and usage guide |
+| `docs/scripts/scrape.sh` | Screenshot capture pipeline (health check, shot-scraper, browser frames, compress) |
+| `docs/scripts/shots.yaml` | shot-scraper page configuration (starter with dashboard + detail page) |
+| `docs/scripts/add_browser_frame.py` | Adds macOS-style browser frames to screenshots using Pillow |
 
 ### Code Quality
 

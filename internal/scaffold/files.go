@@ -11,6 +11,18 @@ import (
 
 // WriteTemplateFile renders a template and writes it to path, skipping if the file already exists.
 func WriteTemplateFile(path, templateName string, data templates.Data, dryRun bool, log *logger.Logger) error {
+	return writeTemplateFileWithMode(path, templateName, data, 0o644, dryRun, log)
+}
+
+// WriteExecutableTemplateFile renders a template and writes it to path with executable permissions (0o755),
+// skipping if the file already exists.
+func WriteExecutableTemplateFile(path, templateName string, data templates.Data, dryRun bool, log *logger.Logger) error {
+	return writeTemplateFileWithMode(path, templateName, data, 0o755, dryRun, log)
+}
+
+// writeTemplateFileWithMode renders a template and writes it to path with the given file mode,
+// skipping if the file already exists.
+func writeTemplateFileWithMode(path, templateName string, data templates.Data, mode os.FileMode, dryRun bool, log *logger.Logger) error {
 	if _, err := os.Stat(path); err == nil {
 		log.Info(path + " already exists, skipping")
 		return nil
@@ -32,7 +44,7 @@ func WriteTemplateFile(path, templateName string, data templates.Data, dryRun bo
 		return fmt.Errorf("creating directory for %s: %w", path, err)
 	}
 
-	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+	if err := os.WriteFile(path, []byte(content), mode); err != nil {
 		return fmt.Errorf("writing %s: %w", path, err)
 	}
 

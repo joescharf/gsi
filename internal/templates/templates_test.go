@@ -31,6 +31,9 @@ func TestRenderWithVariables(t *testing.T) {
 		{"goreleaser_yml.tmpl", []string{"project_name: myapp", "github.com/example/myapp/cmd.version", "ghcr.io/example/myapp"}},
 		{"dockerfile.tmpl", []string{"COPY $TARGETPLATFORM/myapp", "ENTRYPOINT"}},
 		{"dockerignore.tmpl", []string{".git", "dist/"}},
+		{"docs_scripts_scrape_sh.tmpl", []string{"#!/bin/bash", `--title "myapp"`, "shot-scraper"}},
+		{"docs_scripts_shots_yaml.tmpl", []string{"myapp-dashboard.png", "localhost:8080"}},
+		{"docs_scripts_add_browser_frame_py.tmpl", []string{"#!/usr/bin/env python3", "pillow", "SUPERSAMPLE_SCALE"}},
 	}
 
 	for _, tt := range tests {

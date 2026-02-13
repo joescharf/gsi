@@ -373,9 +373,33 @@ func (s *Scaffolder) stepInitDocs() error {
 	}
 
 	// Write docs/docs/stylesheets/extra.css
-	return WriteTemplateFile(
+	if err := WriteTemplateFile(
 		filepath.Join(dir, "docs", "docs", "stylesheets", "extra.css"),
 		"docs_extra_css.tmpl", data, s.Config.DryRun, s.Logger,
+	); err != nil {
+		return err
+	}
+
+	// Write docs/scripts/scrape.sh (executable)
+	if err := WriteExecutableTemplateFile(
+		filepath.Join(dir, "docs", "scripts", "scrape.sh"),
+		"docs_scripts_scrape_sh.tmpl", data, s.Config.DryRun, s.Logger,
+	); err != nil {
+		return err
+	}
+
+	// Write docs/scripts/shots.yaml
+	if err := WriteTemplateFile(
+		filepath.Join(dir, "docs", "scripts", "shots.yaml"),
+		"docs_scripts_shots_yaml.tmpl", data, s.Config.DryRun, s.Logger,
+	); err != nil {
+		return err
+	}
+
+	// Write docs/scripts/add_browser_frame.py
+	return WriteTemplateFile(
+		filepath.Join(dir, "docs", "scripts", "add_browser_frame.py"),
+		"docs_scripts_add_browser_frame_py.tmpl", data, s.Config.DryRun, s.Logger,
 	)
 }
 
