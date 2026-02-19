@@ -176,6 +176,7 @@ func (s *Scaffolder) Run() error {
 			s.stepGenerateEmbedGo,
 			s.stepGoModTidy,
 			s.stepGenerateMakefile,
+			s.stepGenerateGolangciLintConfig,
 			s.stepGenerateGoreleaser,
 			s.stepGenerateDockerfile,
 			s.stepGenerateDockerignore,

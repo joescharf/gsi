@@ -36,6 +36,7 @@ func TestRenderWithVariables(t *testing.T) {
 		{"docs_scripts_shots_yaml.tmpl", []string{"myapp-dashboard.png", "localhost:8080"}},
 		{"docs_scripts_add_browser_frame_py.tmpl", []string{"#!/usr/bin/env python3", "pillow", "SUPERSAMPLE_SCALE"}},
 		{"github_release_yml.tmpl", []string{"go-version-file: go.mod", "oven-sh/setup-bun", "docker/setup-qemu-action", "docker/setup-buildx-action", "docker/login-action", "version: latest"}},
+		{"golangci_yml.tmpl", []string{`version: "2"`, "errcheck", "fmt.Fprintf"}},
 		{"github_ci_yml.tmpl", []string{"go-version-file: go.mod", "oven-sh/setup-bun", "go test", "go vet", "golangci-lint"}},
 		{"github_docs_yml.tmpl", []string{"astral-sh/setup-uv", "mkdocs build", "upload-pages-artifact", "deploy-pages"}},
 		{"main_go.tmpl", []string{"github.com/example/myapp/cmd", "cmd.Execute(version, commit, date)"}},

@@ -164,6 +164,17 @@ func (s *Scaffolder) stepGenerateMockeryConfig() error {
 	)
 }
 
+// stepGenerateGolangciLintConfig writes .golangci.yml from template.
+func (s *Scaffolder) stepGenerateGolangciLintConfig() error {
+	return WriteTemplateFile(
+		filepath.Join(s.Config.ProjectDir, ".golangci.yml"),
+		"golangci_yml.tmpl",
+		s.templateData(),
+		s.Config.DryRun,
+		s.Logger,
+	)
+}
+
 // stepGenerateEditorConfig writes .editorconfig from template.
 func (s *Scaffolder) stepGenerateEditorConfig() error {
 	if !s.Config.IsEnabled(CapEditorconfig) {
@@ -259,7 +270,9 @@ func (s *Scaffolder) stepGenerateReleaseWorkflow() error {
 	}
 	dir := filepath.Join(s.Config.ProjectDir, ".github", "workflows")
 	if !s.Config.DryRun {
-		os.MkdirAll(dir, 0o755)
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			return fmt.Errorf("creating workflows directory: %w", err)
+		}
 	}
 	return WriteTemplateFile(
 		filepath.Join(dir, "release.yml"),
@@ -300,7 +313,9 @@ func (s *Scaffolder) stepGenerateCIWorkflow() error {
 	}
 	dir := filepath.Join(s.Config.ProjectDir, ".github", "workflows")
 	if !s.Config.DryRun {
-		os.MkdirAll(dir, 0o755)
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			return fmt.Errorf("creating workflows directory: %w", err)
+		}
 	}
 	return WriteTemplateFile(
 		filepath.Join(dir, "ci.yml"),
@@ -319,7 +334,9 @@ func (s *Scaffolder) stepGenerateDocsWorkflow() error {
 	}
 	dir := filepath.Join(s.Config.ProjectDir, ".github", "workflows")
 	if !s.Config.DryRun {
-		os.MkdirAll(dir, 0o755)
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			return fmt.Errorf("creating workflows directory: %w", err)
+		}
 	}
 	return WriteTemplateFile(
 		filepath.Join(dir, "docs.yml"),
@@ -395,7 +412,7 @@ func (s *Scaffolder) stepInitDocs() error {
 				filepath.Join(dir, "docs", "main.py"),
 				filepath.Join(dir, "docs", "README.md"),
 			} {
-				os.RemoveAll(f)
+				_ = os.RemoveAll(f)
 			}
 		} else {
 			s.Logger.Warning("[DRY-RUN] Would remove uv init scaffolding (docs/.git, docs/hello.py, docs/main.py, docs/README.md)")
@@ -427,7 +444,9 @@ func (s *Scaffolder) stepInitDocs() error {
 
 	// Create docs/docs/stylesheets directory
 	if !s.Config.DryRun {
-		os.MkdirAll(filepath.Join(dir, "docs", "docs", "stylesheets"), 0o755)
+		if err := os.MkdirAll(filepath.Join(dir, "docs", "docs", "stylesheets"), 0o755); err != nil {
+			return fmt.Errorf("creating stylesheets directory: %w", err)
+		}
 	} else {
 		s.Logger.Warning("[DRY-RUN] Would create docs/docs/stylesheets/")
 	}

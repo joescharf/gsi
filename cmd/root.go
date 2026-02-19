@@ -116,11 +116,11 @@ func init() {
 	}
 
 	// Bind non-capability flags to viper
-	viper.BindPFlag("author", rootCmd.Flags().Lookup("author"))
-	viper.BindPFlag("module", rootCmd.Flags().Lookup("module"))
-	viper.BindPFlag("dry-run", rootCmd.Flags().Lookup("dry-run"))
-	viper.BindPFlag("verbose", rootCmd.Flags().Lookup("verbose"))
-	viper.BindPFlag("only-docs", rootCmd.Flags().Lookup("only-docs"))
+	_ = viper.BindPFlag("author", rootCmd.Flags().Lookup("author"))
+	_ = viper.BindPFlag("module", rootCmd.Flags().Lookup("module"))
+	_ = viper.BindPFlag("dry-run", rootCmd.Flags().Lookup("dry-run"))
+	_ = viper.BindPFlag("verbose", rootCmd.Flags().Lookup("verbose"))
+	_ = viper.BindPFlag("only-docs", rootCmd.Flags().Lookup("only-docs"))
 
 	// Set defaults via viper
 	viper.SetDefault("author", "Joe Scharf joe@joescharf.com")

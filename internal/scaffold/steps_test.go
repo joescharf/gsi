@@ -45,7 +45,9 @@ func TestStepInstallBmadSkipFlag(t *testing.T) {
 
 func TestStepInstallBmadExistingDir(t *testing.T) {
 	s, stdout, _ := testScaffolder(t, false)
-	os.MkdirAll(filepath.Join(s.Config.ProjectDir, "_bmad"), 0o755)
+	if err := os.MkdirAll(filepath.Join(s.Config.ProjectDir, "_bmad"), 0o755); err != nil {
+		t.Fatal(err)
+	}
 
 	if err := s.stepInstallBmad(); err != nil {
 		t.Fatal(err)
