@@ -11,7 +11,7 @@ A Go CLI tool that scaffolds new Go projects with best practices and tooling.
 - Viper config file discovery, env var support, and `SetDefaults()` wiring
 - [Mockery](https://github.com/vektra/mockery) configuration
 - `.editorconfig`
-- [BMAD method](https://github.com/bmad-method/bmad-method) framework (requires `bun`)
+- [BMAD method](https://github.com/bmad-method/bmad-method) framework (requires `npx`/Node.js)
 - [mkdocs-material](https://squidfunk.github.io/mkdocs-material/) documentation site in `docs/` (requires `uv`)
 - [Goreleaser](https://goreleaser.com) config for Linux, macOS, and Windows binaries, Docker images, and Homebrew
 - Dockerfile (Alpine 3.21, non-root user, multi-platform) and `.dockerignore`
@@ -25,7 +25,7 @@ A Go CLI tool that scaffolds new Go projects with best practices and tooling.
 ## Prerequisites
 
 - **Required:** `go`
-- **Optional:** `git`, `bun` (for BMAD + UI), `uv` (for docs), `gh` (for GitHub Pages setup)
+- **Optional:** `git`, `npx`/Node.js (for BMAD), `bun` (for UI), `uv` (for docs), `gh` (for GitHub Pages setup)
 
 ## Installation
 

@@ -25,7 +25,7 @@ func (s *Scaffolder) templateData() templates.Data {
 	}
 }
 
-// stepInstallBmad installs the BMAD method framework via bun.
+// stepInstallBmad installs the BMAD method framework via npx.
 func (s *Scaffolder) stepInstallBmad() error {
 	if !s.Config.IsEnabled(CapBmad) {
 		s.Logger.Info("Skipping BMAD installation (--no-bmad)")
@@ -38,12 +38,12 @@ func (s *Scaffolder) stepInstallBmad() error {
 		return nil
 	}
 
-	if !CheckCommand("bun") {
-		s.Logger.Warning("Skipping BMAD installation (bun not found)")
+	if !CheckCommand("npx") {
+		s.Logger.Warning("Skipping BMAD installation (npx not found)")
 		return nil
 	}
 
-	return s.Executor.Execute("bunx bmad-method@alpha install", "Installing BMAD method framework")
+	return s.Executor.Execute("npx bmad-method install --directory . --modules bmm --tools claude-code --yes", "Installing BMAD method framework")
 }
 
 // stepInstallCobraCli installs cobra-cli if not already on PATH.

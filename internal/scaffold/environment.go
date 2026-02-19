@@ -57,12 +57,18 @@ func ValidateEnvironment(cfg *Config, log *logger.Logger) error {
 		}
 	}
 
-	if cfg.IsEnabled(CapBmad) || cfg.IsEnabled(CapUI) {
+	if cfg.IsEnabled(CapBmad) {
+		if !CheckCommand("npx") {
+			log.Warning("npx is not installed — auto-disabling bmad capability")
+			cfg.Disable(CapBmad)
+		} else {
+			log.VerboseMsg("Found npx")
+		}
+	}
+
+	if cfg.IsEnabled(CapUI) {
 		if !CheckCommand("bun") {
 			log.Warning("bun is not installed (optional)")
-			if cfg.IsEnabled(CapBmad) {
-				cfg.Disable(CapBmad)
-			}
 			// UI has a hard requirement validated separately in Run()
 		} else {
 			log.VerboseMsg("Found bun")

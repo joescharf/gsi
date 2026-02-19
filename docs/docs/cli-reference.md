@@ -28,7 +28,7 @@ Every toggleable capability has a `--<name>` flag (to enable) and a hidden `--no
 
 Capabilities with missing soft dependencies are auto-disabled at runtime:
 
-- `bmad` is auto-disabled if `bun` is not found
+- `bmad` is auto-disabled if `npx` is not found
 - `docs` is auto-disabled if `uv` is not found
 - `git` is auto-disabled if `git` is not found
 
